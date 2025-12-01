@@ -243,4 +243,34 @@ export const proveedorService = {
   }
 };
 
+// Agregar esto a tu archivo inventarioService.js si no existe
+
+// Servicio para Variedades de Agave
+export const variedadAgaveService = {
+  getAll: async () => {
+    const response = await api.get('/variedades');
+    return response.data;
+  },
+  
+  getById: async (id) => {
+    const response = await api.get(`/variedades/${id}`);
+    return response.data;
+  },
+  
+  create: async (data) => {
+    const response = await api.post('/variedades', data);
+    return response.data;
+  },
+  
+  update: async (id, data) => {
+    const response = await api.put(`/variedades/${id}`, data);
+    return response.data;
+  },
+  
+  delete: async (id) => {
+    const response = await api.delete(`/variedades/${id}`);
+    return response.data;
+  }
+};
+
 export default api;

@@ -1,4 +1,8 @@
-import { useState, useRef, useContext, useEffect } from "react";
+// Reception.jsx - Componente de Recepción de Insumos con filtrado por cliente
+// Ubicación: src/pages/Reception.jsx
+// ACTUALIZADO: Ahora envía variedad_agave_id y presentacion_id al backend
+
+import { useState, useContext, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import {
   IoAddOutline,
@@ -9,12 +13,85 @@ import {
   IoCalendarOutline,
   IoRefreshOutline,
   IoClose,
-  IoWarningOutline
+  IoWarningOutline,
+  IoDownloadOutline,
+  IoEyeOutline
 } from "react-icons/io5";
 import { ThemeContext } from "../App";
 import { useRecepciones } from "../hooks/useRecepciones";
 import { recepcionService } from "../services/recepcionService";
-import { clienteService, presentacionService, categoriaService, inventarioService } from "../services/inventarioService";
+import { 
+  clienteService, 
+  presentacionService, 
+  categoriaService, 
+  inventarioService
+} from "../services/inventarioService";
+
+// Importar el servicio de PDF
+import { downloadRecepcionPDF, previewRecepcionPDF } from "../services/pdfService";
+
+// Importar servicio de configuración de clientes (opcional, con fallback)
+import { obtenerTodasConfiguraciones } from "../services/clienteConfigService";
+
+// ==================== CONFIGURACIÓN LOCAL DE RESPALDO ====================
+// Esta configuración se usa si no se puede cargar del backend
+const CLIENTE_CONFIG_FALLBACK = {
+  'THE PRODUCER': {
+    variedades: ['ESPADÍN', 'ENSAMBLE', 'SAN MARTÍN', 'TEPEZTATE', 'ARROQUEÑO'],
+    presentaciones: ['1000 ml', '750 ml', '700 ml', '200 ml'],
+    tipos: ['Nacional', 'Exportación']
+  },
+  'ESPÍRITU CORSA': {
+    variedades: ['ESPADÍN', 'ENSAMBLE', 'ENSAMBLE MADURADO'],
+    presentaciones: ['1000 ml', '750 ml', '200 ml', '50 ml'],
+    tipos: ['Nacional']
+  },
+  'ESPIRITU CORSA': {
+    variedades: ['ESPADÍN', 'ENSAMBLE', 'ENSAMBLE MADURADO'],
+    presentaciones: ['1000 ml', '750 ml', '200 ml', '50 ml'],
+    tipos: ['Nacional']
+  },
+  'ANCESTRAL': {
+    variedades: ['ESPADÍN'],
+    presentaciones: ['750 ml', '375 ml'],
+    tipos: ['Nacional', 'Exportación']
+  }
+};
+
+// Función para normalizar nombres de cliente (quitar acentos, mayúsculas)
+const normalizeClientName = (name) => {
+  if (!name) return '';
+  return name
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+};
+
+// Función para obtener configuración del cliente desde un objeto de configuraciones
+const getClientConfigFromData = (clientName, configuraciones) => {
+  if (!clientName) return null;
+  
+  const normalized = normalizeClientName(clientName);
+  
+  // Buscar coincidencia exacta primero
+  for (const [key, config] of Object.entries(configuraciones)) {
+    if (normalizeClientName(key) === normalized) {
+      return config;
+    }
+  }
+  
+  // Buscar coincidencia parcial
+  for (const [key, config] of Object.entries(configuraciones)) {
+    if (normalized.includes(normalizeClientName(key)) || 
+        normalizeClientName(key).includes(normalized)) {
+      return config;
+    }
+  }
+  
+  // Si no hay configuración específica, devolver null
+  return null;
+};
 
 // Definir insumos según tipo (Exportación o Nacional)
 const INSUMOS_POR_TIPO = {
@@ -41,16 +118,29 @@ const INSUMOS_POR_TIPO = {
   ]
 };
 
+// Todas las variedades disponibles (por defecto)
+const TODAS_VARIEDADES = [
+  'ESPADÍN', 'ENSAMBLE', 'ENSAMBLE MADURADO', 'SAN MARTÍN', 
+  'TEPEZTATE', 'ARROQUEÑO', 'TOBALÁ', 'CUISHE', 'MADRECUISHE', 
+  'COYOTE', 'MEXICANO', 'BARRIL'
+];
+
+// Todas las presentaciones disponibles (por defecto)
+const TODAS_PRESENTACIONES = ['1000 ml', '750 ml', '700 ml', '375 ml', '200 ml', '50 ml'];
+
+// Todos los tipos disponibles (por defecto)
+const TODOS_TIPOS = ['Nacional', 'Exportación'];
+
 export function Reception() {
   const { theme } = useContext(ThemeContext);
   const [showForm, setShowForm] = useState(false);
   const [editingReception, setEditingReception] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const printRef = useRef();
 
   // Estados para datos del backend
   const [clientes, setClientes] = useState([]);
-  const [presentaciones, setPresentaciones] = useState([]);
+  const [presentacionesDB, setPresentacionesDB] = useState([]);
+  const [clienteConfiguraciones, setClienteConfiguraciones] = useState(CLIENTE_CONFIG_FALLBACK);
   const [loadingData, setLoadingData] = useState(true);
 
   // Toast notifications
@@ -60,6 +150,9 @@ export function Reception() {
   const [showCreateInsumosModal, setShowCreateInsumosModal] = useState(false);
   const [insumosFaltantes, setInsumosFaltantes] = useState([]);
   const [pendingReceptionData, setPendingReceptionData] = useState(null);
+
+  // Estado para generación de PDF
+  const [generatingPDF, setGeneratingPDF] = useState(null);
 
   // Usar el custom hook solo para recepciones
   const {
@@ -86,20 +179,41 @@ export function Reception() {
         setLoadingData(true);
 
         const [clientesRes, presentacionesRes] = await Promise.all([
-          clienteService.getAll(),
-          presentacionService.getAll()
+          clienteService.getAll().catch(err => {
+            console.error('Error cargando clientes:', err);
+            return { data: [] };
+          }),
+          presentacionService.getAll().catch(err => {
+            console.error('Error cargando presentaciones:', err);
+            return { data: [] };
+          })
         ]);
 
         const clientesData = clientesRes.data || clientesRes || [];
         const presentacionesData = presentacionesRes.data || presentacionesRes || [];
 
         setClientes(clientesData);
-        setPresentaciones(presentacionesData);
+        setPresentacionesDB(presentacionesData);
 
-        console.log('✅ Clientes cargados:', clientesData);
-        console.log('✅ Presentaciones cargadas:', presentacionesData);
+        // Intentar cargar configuraciones desde el backend
+        try {
+          const configRes = await obtenerTodasConfiguraciones();
+          if (configRes.success && Object.keys(configRes.data).length > 0) {
+            console.log('✅ Configuraciones cargadas desde el backend');
+            setClienteConfiguraciones(configRes.data);
+          } else {
+            console.log('ℹ️ Usando configuraciones locales de respaldo');
+          }
+        } catch (configError) {
+          console.warn('⚠️ No se pudieron cargar las configuraciones del backend, usando fallback local');
+          // Mantener las configuraciones de fallback
+        }
+
+        console.log('✅ Clientes cargados:', clientesData.length);
+        console.log('✅ Presentaciones cargadas:', presentacionesData.length);
       } catch (err) {
         console.error('❌ Error cargando datos:', err);
+        showToast('Error al cargar datos iniciales', 'error');
       } finally {
         setLoadingData(false);
       }
@@ -115,24 +229,63 @@ export function Reception() {
     contact: c.persona_contacto
   }));
 
-  // Construir lista de presentaciones
-  const presentacionesList = presentaciones.map(p => p.volumen).sort();
-
   // Estado del formulario
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     responsibleRegistry: "",
     client: "",
     shippingOrder: "",
-    variety: "ENSAMBLE",
+    variety: "",
     presentation: "",
-    type: "Exportación",
+    type: "",
     format: "",
+    lote: "",
     supplies: [],
     additionalNotes: "",
     deliveredBy: "",
     receivedBy: ""
   });
+
+  // ==================== FILTRADO DINÁMICO POR CLIENTE ====================
+  
+  // Obtener configuración del cliente seleccionado (desde backend o fallback)
+  const clientConfig = useMemo(() => {
+    return getClientConfigFromData(formData.client, clienteConfiguraciones);
+  }, [formData.client, clienteConfiguraciones]);
+
+  // Variedades filtradas según el cliente
+  const variedadesFiltradas = useMemo(() => {
+    if (clientConfig && clientConfig.variedades) {
+      return clientConfig.variedades;
+    }
+    return TODAS_VARIEDADES;
+  }, [clientConfig]);
+
+  // Presentaciones filtradas según el cliente
+  const presentacionesFiltradas = useMemo(() => {
+    if (clientConfig && clientConfig.presentaciones) {
+      return clientConfig.presentaciones;
+    }
+    // Si no hay configuración, usar las de la BD
+    if (presentacionesDB.length > 0) {
+      return presentacionesDB.map(p => p.volumen).sort();
+    }
+    return TODAS_PRESENTACIONES;
+  }, [clientConfig, presentacionesDB]);
+
+  // Tipos filtrados según el cliente
+  const tiposFiltrados = useMemo(() => {
+    if (clientConfig && clientConfig.tipos) {
+      return clientConfig.tipos;
+    }
+    return TODOS_TIPOS;
+  }, [clientConfig]);
+
+  // Función para generar el formato: CLIENTE - VARIEDAD PRESENTACION TIPO
+  const generateFormat = (client, variety, presentation, type) => {
+    if (!client || !variety || !presentation || !type) return '';
+    return `${client} - ${variety} ${presentation} ${type.toUpperCase()}`;
+  };
 
   // Generar insumos automáticamente según tipo y presentación
   const generateSupplies = (type, presentation) => {
@@ -153,23 +306,40 @@ export function Reception() {
         [field]: value
       };
 
-      // Auto-generar formato y supplies cuando cambian presentation o type
-      if (field === 'presentation' || field === 'type') {
-        const presentation = field === 'presentation' ? value : prev.presentation;
-        const type = field === 'type' ? value : prev.type;
-        const variety = prev.variety;
-
-        if (presentation && type) {
-          newData.format = `${prev.client} - ${variety} ${presentation} ${type}`;
-          newData.supplies = generateSupplies(type, presentation);
+      // Si cambia el cliente, resetear variedad, presentación y tipo
+      if (field === 'client') {
+        newData.variety = "";
+        newData.presentation = "";
+        newData.type = "";
+        newData.format = "";
+        newData.supplies = [];
+        
+        // Si el cliente solo tiene un tipo disponible, seleccionarlo automáticamente
+        const config = getClientConfigFromData(value, clienteConfiguraciones);
+        if (config && config.tipos && config.tipos.length === 1) {
+          newData.type = config.tipos[0];
         }
       }
 
-      // Si cambia el cliente, resetear algunos campos
-      if (field === 'client') {
-        newData.presentation = '';
-        newData.format = '';
-        newData.supplies = [];
+      // Auto-generar formato cuando cambian variety, presentation o type
+      if (['variety', 'presentation', 'type'].includes(field)) {
+        const client = prev.client;
+        const variety = field === 'variety' ? value : prev.variety;
+        const presentation = field === 'presentation' ? value : prev.presentation;
+        const type = field === 'type' ? value : prev.type;
+
+        // Generar formato
+        newData.format = generateFormat(client, variety, presentation, type);
+
+        // Generar supplies solo cuando cambian presentation o type
+        if (field === 'presentation' || field === 'type') {
+          const currentPresentation = field === 'presentation' ? value : prev.presentation;
+          const currentType = field === 'type' ? value : prev.type;
+          
+          if (currentPresentation && currentType) {
+            newData.supplies = generateSupplies(currentType, currentPresentation);
+          }
+        }
       }
 
       return newData;
@@ -185,19 +355,14 @@ export function Reception() {
     }));
   };
 
-  // ==================== FUNCIÓN ACTUALIZADA PARA MAPEO DE CATEGORÍAS ====================
   // Función mejorada para mapear nombre de insumo a categoría ESPECÍFICA
   const getCategoriaForInsumo = (nombreInsumo, presentacion = '') => {
     const nombreUpper = nombreInsumo.toUpperCase().trim();
 
-    console.log('🔍 Buscando categoría exacta para:', nombreInsumo, '| Presentación:', presentacion);
-
     // ========== BOTELLAS CON PRESENTACIÓN ==========
     if (nombreUpper.includes('BOTELLA') && nombreUpper.includes('CAJA')) {
-      // Extraer presentación del nombre del insumo
       let presentacionEnNombre = presentacion;
 
-      // Intentar extraer del nombre si no se pasó como parámetro
       if (!presentacionEnNombre) {
         const match = nombreUpper.match(/(\d+\s*(?:ML|L))/i);
         if (match) {
@@ -206,53 +371,42 @@ export function Reception() {
       }
 
       if (presentacionEnNombre) {
-        const categoriaNombre = `BOTELLA ${presentacionEnNombre.toUpperCase()} Y CAJA`;
-        console.log('✅ Categoría botella:', categoriaNombre);
-        return categoriaNombre;
+        return `BOTELLA ${presentacionEnNombre.toUpperCase()} Y CAJA`;
       }
-
-      console.warn('⚠️ Botella sin presentación identificable');
       return null;
     }
 
     // ========== TAPONES CÓNICOS ==========
     if ((nombreUpper.includes('TAPÓN') && nombreUpper.includes('CÓNICO')) ||
       (nombreUpper.includes('TAPON') && nombreUpper.includes('CONICO'))) {
-      console.log('✅ Categoría: TAPONES CONICOS NATURALES O NEGROS');
       return 'TAPONES CONICOS NATURALES O NEGROS';
     }
 
     // ========== CORCHO CON TAPA ==========
     if (nombreUpper.includes('CORCHO') && nombreUpper.includes('TAPA')) {
-      console.log('✅ Categoría: CORCHO CON TAPA NATURAL O NEGRA');
       return 'CORCHO CON TAPA NATURAL O NEGRA';
     }
 
     // ========== CUERITOS ==========
     if (nombreUpper.includes('CUERITO') || nombreUpper.includes('CUERITOS')) {
-      console.log('✅ Categoría: CUERITOS NEGROS O NATURALES');
       return 'CUERITOS NEGROS O NATURALES';
     }
 
     // ========== CINTILLO ==========
     if (nombreUpper.includes('CINTILLO')) {
-      console.log('✅ Categoría: CINTILLO');
       return 'CINTILLO';
     }
 
     // ========== SELLOS TÉRMICOS ==========
     if (nombreUpper.includes('SELLO') && (nombreUpper.includes('TÉRMI') || nombreUpper.includes('TERMI'))) {
-      console.log('✅ Categoría: SELLOS TERMICOS');
       return 'SELLOS TERMICOS';
     }
 
     // ========== ETIQUETAS FRENTE ==========
     if (nombreUpper.includes('ETIQUETA') && nombreUpper.includes('FRENTE')) {
-      // Determinar si es Exportación o Nacional
       const esExportacion = nombreUpper.includes('EXPORTACIÓN') || nombreUpper.includes('EXPORTACION');
       const tipo = esExportacion ? 'EXPORTACIÓN' : 'NACIONAL';
 
-      // Extraer presentación
       let presentacionEnNombre = presentacion;
       if (!presentacionEnNombre) {
         const match = nombreUpper.match(/(\d+\s*(?:ML|L))/i);
@@ -262,12 +416,8 @@ export function Reception() {
       }
 
       if (presentacionEnNombre) {
-        const categoriaNombre = `ETIQUETA FRENTE ${tipo} ${presentacionEnNombre.toUpperCase()}`;
-        console.log('✅ Categoría etiqueta frente:', categoriaNombre);
-        return categoriaNombre;
+        return `ETIQUETA FRENTE ${tipo} ${presentacionEnNombre.toUpperCase()}`;
       }
-
-      console.warn('⚠️ Etiqueta frente sin presentación identificable');
       return null;
     }
 
@@ -285,85 +435,94 @@ export function Reception() {
       }
 
       if (presentacionEnNombre) {
-        const categoriaNombre = `ETIQUETA TRASERA ${tipo} ${presentacionEnNombre.toUpperCase()}`;
-        console.log('✅ Categoría etiqueta trasera:', categoriaNombre);
-        return categoriaNombre;
+        return `ETIQUETA TRASERA ${tipo} ${presentacionEnNombre.toUpperCase()}`;
       }
-
-      console.warn('⚠️ Etiqueta trasera sin presentación identificable');
       return null;
     }
 
     // ========== STICKER PARA CAJA ==========
     if (nombreUpper.includes('STICKER') && nombreUpper.includes('CAJA')) {
-      console.log('✅ Categoría: STICKER PARA CAJA');
       return 'STICKER PARA CAJA';
     }
 
     // ========== CÓDIGO DE BARRAS ==========
     if ((nombreUpper.includes('CÓDIGO') || nombreUpper.includes('CODIGO')) &&
       (nombreUpper.includes('BARRAS') || nombreUpper.includes('BARRA'))) {
-      console.log('✅ Categoría: CODIGO DE BARRAS PARA CAJAS');
       return 'CODIGO DE BARRAS PARA CAJAS';
     }
 
     // ========== BOLSAS DE PAPEL ==========
     if (nombreUpper.includes('BOLSA') && nombreUpper.includes('PAPEL')) {
-      console.log('✅ Categoría: BOLSAS DE PAPEL');
       return 'BOLSAS DE PAPEL';
     }
 
-    console.warn('❌ Categoría no encontrada para:', nombreInsumo);
     return null;
   };
 
-  // ==================== FUNCIÓN ACTUALIZADA PARA CONVERTIR AL FORMATO BACKEND ====================
+  // ==================== MAPEOS DE IDs ====================
+  // Mapeo de variedades a IDs (basado en tu BD)
+  const VARIEDAD_IDS = {
+    'ESPADÍN': 1, 'ESPADIN': 1,
+    'ENSAMBLE': 2,
+    'SAN MARTÍN': 3, 'SAN MARTIN': 3,
+    'TEPEZTATE': 4,
+    'ARROQUEÑO': 5, 'ARROQUENO': 5,
+    'ENSAMBLE MADURADO': 6
+  };
+
+  // Mapeo de presentaciones a IDs (basado en tu BD)
+  const PRESENTACION_IDS = {
+    '50 ML': 1, '50 ml': 1,
+    '200 ML': 2, '200 ml': 2,
+    '375 ML': 3, '375 ml': 3,
+    '700 ML': 4, '700 ml': 4,
+    '750 ML': 5, '750 ml': 5,
+    '1000 ML': 6, '1000 ml': 6
+  };
+
   // Convertir del formato original al formato del backend
   const convertToBackendFormat = async (data, autoCreateMissing = false) => {
     const clienteId = clientes.find(c => c.nombre === data.client)?.id;
 
-    // Obtener el inventario completo filtrado por cliente y tipo
+    // ========================================
+    // OBTENER IDs DE VARIEDAD Y PRESENTACIÓN
+    // ========================================
+    const variedadNormalizada = data.variety.toUpperCase().trim();
+    const presentacionNormalizada = data.presentation.toUpperCase().trim();
+
+    // Buscar ID de variedad
+    const variedad_agave_id = VARIEDAD_IDS[variedadNormalizada] || null;
+    
+    // Buscar ID de presentación (primero en mapeo, luego en BD)
+    let presentacion_id = PRESENTACION_IDS[presentacionNormalizada];
+    if (!presentacion_id && presentacionesDB.length > 0) {
+      const presentacionDB = presentacionesDB.find(p => 
+        p.volumen.toUpperCase().trim() === presentacionNormalizada
+      );
+      presentacion_id = presentacionDB?.id || null;
+    }
+
+    console.log('📦 Datos para actualizar inventario:');
+    console.log('  - Variedad:', data.variety, '→ ID:', variedad_agave_id);
+    console.log('  - Presentación:', data.presentation, '→ ID:', presentacion_id);
+    console.log('  - Tipo:', data.type);
+
     let inventarioData = [];
     try {
-      console.log('🔍 Buscando inventario con:', {
-        cliente: data.client,
-        tipo: data.type,
-        presentacion: data.presentation
-      });
-
       const inventarioResponse = await inventarioService.buscar({
         cliente_nombre: data.client,
         tipo: data.type
       });
 
       inventarioData = inventarioResponse.data || inventarioResponse || [];
-
-      console.log('📦 Inventario cargado para búsqueda:', inventarioData.length, 'items');
-
-      // Log de los primeros items para debug
-      if (inventarioData.length > 0) {
-        console.log('📋 Primeros 3 items del inventario:');
-        inventarioData.slice(0, 3).forEach(item => {
-          console.log({
-            id: item.id,
-            categoria: item.categoria?.nombre || item.CATEGORIA_INSUMO?.nombre,
-            tipo: item.tipo,
-            presentacion: item.presentacion?.volumen || item.PRESENTACION?.volumen,
-            codigo: item.codigo_lote
-          });
-        });
-      }
     } catch (err) {
       console.error('❌ Error cargando inventario:', err);
     }
 
-    // Procesar cada insumo para encontrar su inventario_id
     const detallesPromises = data.supplies.map(async (supply) => {
-      // Obtener nombre exacto de categoría
       const categoriaNombreExacto = getCategoriaForInsumo(supply.name, data.presentation);
 
       if (!categoriaNombreExacto) {
-        console.warn(`⚠️ No se encontró categoría exacta para insumo: ${supply.name}`);
         return {
           inventario_id: null,
           cantidad: parseInt(supply.quantity) || 0,
@@ -375,37 +534,18 @@ export function Reception() {
         };
       }
 
-      console.log(`🔎 Buscando en inventario con categoría exacta: "${categoriaNombreExacto}"`);
-
-      // Buscar en el inventario con el nombre EXACTO de la categoría
       const itemInventario = inventarioData.find(item => {
         const itemCategoria = item.categoria || item.CATEGORIA_INSUMO;
         const itemCliente = item.cliente || item.CLIENTE;
-        const itemPresentacion = item.presentacion || item.PRESENTACION;
 
-        // Comparación EXACTA del nombre de categoría
         const matchCategoria = itemCategoria?.nombre === categoriaNombreExacto;
         const matchCliente = itemCliente?.nombre === data.client;
         const matchTipo = item.tipo === data.type;
-
-        console.log(`  🔍 Verificando item ${item.id}:`);
-        console.log(`      Categoría item:`, itemCategoria?.nombre);
-        console.log(`      Categoría buscada:`, categoriaNombreExacto);
-        console.log(`      Match categoría:`, matchCategoria);
-        console.log(`      Cliente item:`, itemCliente?.nombre);
-        console.log(`      Cliente buscado:`, data.client);
-        console.log(`      Match cliente:`, matchCliente);
-        console.log(`      Tipo item:`, item.tipo);
-        console.log(`      Tipo buscado:`, data.type);
-        console.log(`      Match tipo:`, matchTipo);
-        console.log(`      ¿Coincide TODO?:`, matchCategoria && matchCliente && matchTipo);
 
         return matchCategoria && matchCliente && matchTipo;
       });
 
       if (!itemInventario) {
-        console.warn(`⚠️ No se encontró inventario para: ${supply.name} (categoría: ${categoriaNombreExacto})`);
-
         return {
           inventario_id: null,
           cantidad: parseInt(supply.quantity) || 0,
@@ -418,8 +558,6 @@ export function Reception() {
         };
       }
 
-      console.log(`✅ Inventario encontrado para ${supply.name}: ID=${itemInventario.id}, Categoría="${itemInventario.categoria?.nombre || itemInventario.CATEGORIA_INSUMO?.nombre}"`);
-
       return {
         inventario_id: itemInventario.id,
         cantidad: parseInt(supply.quantity) || 0,
@@ -431,14 +569,10 @@ export function Reception() {
 
     const detalles = await Promise.all(detallesPromises);
 
-    // Separar detalles válidos e inválidos
     const detallesValidos = detalles.filter(d => d.inventario_id !== null);
     const detallesInvalidos = detalles.filter(d => d.inventario_id === null);
 
-    // Si hay insumos faltantes y no es auto-creación
     if (detallesInvalidos.length > 0 && !autoCreateMissing) {
-      console.log('⚠️ Inventario faltante detectado:', detallesInvalidos);
-
       return {
         error: 'MISSING_INVENTORY',
         missingItems: detallesInvalidos,
@@ -459,43 +593,105 @@ export function Reception() {
       cliente_id: clienteId || null,
       entregado_por: data.deliveredBy,
       recibido_por: data.receivedBy,
-      notas_adicionales: `${data.format}\n\n${data.additionalNotes}\n\nResponsable: ${data.responsibleRegistry}`,
+      notas_adicionales: `${data.format}|${data.lote}|${data.additionalNotes}|${data.responsibleRegistry}`,
       usuario_id: localStorage.getItem('usuario_id') || 1,
-      detalles: detallesValidos
+      detalles: detallesValidos,
+      // ========================================
+      // NUEVOS CAMPOS PARA ACTUALIZAR INVENTARIO
+      // ========================================
+      variedad_agave_id,
+      presentacion_id,
+      tipo: data.type
     };
   };
 
   // Convertir del formato backend al formato original
   const convertFromBackendFormat = (backendData) => {
-    const notasParts = (backendData.notas_adicionales || "").split('\n\n');
+    const notasParts = (backendData.notas_adicionales || "").split('|');
     const format = notasParts[0] || "";
-    const additionalNotes = notasParts[1] || "";
-    const responsibleLine = notasParts[2] || "";
-    const responsibleRegistry = responsibleLine.replace('Responsable: ', '');
+    const lote = notasParts[1] || "";
+    const additionalNotes = notasParts[2] || "";
+    const responsibleRegistry = notasParts[3] || "";
 
-    const isExportacion = format.includes('Exportación');
+    const isExportacion = format.toUpperCase().includes('EXPORTACIÓN') || format.toUpperCase().includes('EXPORTACION');
     const type = isExportacion ? 'Exportación' : 'Nacional';
 
+    // Extraer presentación del formato
     const presentationMatch = format.match(/(\d+\s*(?:ML|L|ml|l))/i);
-    const presentation = presentationMatch ? presentationMatch[1].toUpperCase() : "";
+    const presentation = presentationMatch ? presentationMatch[1].toLowerCase().replace(' ', ' ') : "";
+
+    // Extraer cliente (antes del guión)
+    const clientMatch = format.match(/^([^-]+)/);
+    const client = clientMatch ? clientMatch[1].trim() : (backendData.cliente?.nombre || "");
+
+    // Extraer variedad (después del guión y antes de la presentación)
+    const varietyMatch = format.match(/-\s*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*\d+\s*(?:ML|ml))/i);
+    const variety = varietyMatch ? varietyMatch[1].trim().toUpperCase() : "";
 
     return {
-      date: backendData.fecha_recepcion.split('T')[0],
-      responsibleRegistry: responsibleRegistry || "",
-      client: backendData.cliente?.nombre || "",
+      date: backendData.fecha_recepcion?.split('T')[0] || '',
+      responsibleRegistry: responsibleRegistry,
+      client: client,
       shippingOrder: backendData.orden_compra || "",
-      variety: "ENSAMBLE",
+      variety: variety,
       presentation: presentation,
       type: type,
       format: format,
+      lote: lote,
       supplies: backendData.detalles?.map(d => ({
         name: d.notas || "",
-        quantity: d.cantidad.toString()
+        quantity: d.cantidad?.toString() || ""
       })) || [],
       additionalNotes: additionalNotes,
       deliveredBy: backendData.entregado_por || "",
       receivedBy: backendData.recibido_por || ""
     };
+  };
+
+  // ==================== FUNCIONES DE PDF (ASYNC) ====================
+
+  const handleDownloadPDF = async (reception) => {
+    setGeneratingPDF(reception.id);
+    
+    try {
+      const displayData = reception.supplies ? reception : convertFromBackendFormat(reception);
+      await downloadRecepcionPDF(displayData);
+      showToast('PDF descargado exitosamente', 'success');
+    } catch (err) {
+      console.error('❌ Error al descargar PDF:', err);
+      showToast('Error al generar el PDF', 'error');
+    } finally {
+      setGeneratingPDF(null);
+    }
+  };
+
+  const handlePreviewPDF = async (reception) => {
+    setGeneratingPDF(reception.id);
+    
+    try {
+      const displayData = reception.supplies ? reception : convertFromBackendFormat(reception);
+      await previewRecepcionPDF(displayData);
+    } catch (err) {
+      console.error('❌ Error al previsualizar PDF:', err);
+      showToast('Error al generar la vista previa', 'error');
+    } finally {
+      setGeneratingPDF(null);
+    }
+  };
+
+  const handlePrintPDF = async (reception) => {
+    setGeneratingPDF(reception.id);
+    
+    try {
+      const displayData = reception.supplies ? reception : convertFromBackendFormat(reception);
+      await previewRecepcionPDF(displayData);
+      showToast('PDF abierto para impresión', 'info');
+    } catch (err) {
+      console.error('❌ Error al imprimir PDF:', err);
+      showToast('Error al preparar impresión', 'error');
+    } finally {
+      setGeneratingPDF(null);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -505,18 +701,13 @@ export function Reception() {
     try {
       const backendData = await convertToBackendFormat(formData);
 
-      // Si hay error de inventario faltante
       if (backendData.error === 'MISSING_INVENTORY') {
-        console.log('⚠️ Inventario faltante detectado:', backendData.missingItems);
-
         setPendingReceptionData(backendData.formData);
         setInsumosFaltantes(backendData.missingItems);
         setShowCreateInsumosModal(true);
         setSubmitting(false);
         return;
       }
-
-      console.log('📤 Enviando recepción al backend:', backendData);
 
       if (editingReception) {
         const response = await recepcionService.update(editingReception.id, {
@@ -564,10 +755,11 @@ export function Reception() {
       responsibleRegistry: "",
       client: "",
       shippingOrder: "",
-      variety: "ENSAMBLE",
+      variety: "",
       presentation: "",
-      type: "Exportación",
+      type: "",
       format: "",
+      lote: "",
       supplies: [],
       additionalNotes: "",
       deliveredBy: "",
@@ -587,7 +779,7 @@ export function Reception() {
       setShowForm(true);
     } catch (err) {
       console.error('Error al cargar recepción:', err);
-      alert('Error al cargar la recepción');
+      showToast('Error al cargar la recepción', 'error');
     }
   };
 
@@ -612,45 +804,31 @@ export function Reception() {
     }
   };
 
-  // ==================== FUNCIÓN ACTUALIZADA PARA CREAR INVENTARIO FALTANTE ====================
   // Crear registros de inventario faltantes
   const handleCreateMissingInventory = async () => {
     setSubmitting(true);
 
     try {
-      console.log('📝 Creando registros de inventario faltantes...');
-
       const clienteId = clientes.find(c => c.nombre === pendingReceptionData.client)?.id;
-      const presentacionId = presentaciones.find(p => p.volumen === pendingReceptionData.presentation)?.id;
+      const presentacionId = presentacionesDB.find(p => p.volumen === pendingReceptionData.presentation)?.id;
 
       const categoriasResponse = await categoriaService.getAll();
       const categoriasData = categoriasResponse.data || categoriasResponse;
 
-      console.log('📋 Categorías disponibles:', categoriasData.length);
-
       const createdItems = [];
 
       for (const item of insumosFaltantes) {
-        console.log(`\n🔍 Buscando categoría exacta: "${item.categoriaNombre}"`);
-
-        // Buscar por nombre EXACTO
         const categoria = categoriasData.find(c => c.nombre === item.categoriaNombre);
 
         if (!categoria) {
-          console.warn(`⚠️ Categoría no encontrada: "${item.categoriaNombre}"`);
-          console.log('Primeras 5 categorías disponibles:', categoriasData.slice(0, 5).map(c => c.nombre));
           continue;
         }
 
-        console.log(`✅ Categoría encontrada: ID=${categoria.id}, Nombre="${categoria.nombre}"`);
-
-        // Generar código de lote único
         const timestamp = Date.now();
         const randomSuffix = Math.random().toString(36).substring(2, 5).toUpperCase();
         const prefijo = categoria.nombre.substring(0, 3).toUpperCase().replace(/\s/g, '');
         const codigoLote = `REC-${prefijo}-${timestamp}-${randomSuffix}`;
 
-        // Determinar si necesita presentacion_id
         const necesitaPresentacion = categoria.nombre.includes('BOTELLA') ||
           categoria.nombre.includes('ETIQUETA');
 
@@ -666,36 +844,22 @@ export function Reception() {
           activo: true
         };
 
-        console.log('📦 Creando inventario:', nuevoInventario);
-
         const response = await inventarioService.create(nuevoInventario);
 
         if (response.success || response.data) {
           createdItems.push(response.data || response);
-          console.log(`✅ Inventario creado: ${item.notas} (ID: ${response.data?.id || response.id})`);
         }
       }
 
       showToast(
         `${createdItems.length} registro(s) de inventario creados`,
-        'success',
-        createdItems.slice(0, 3).map(item => ({
-          id: item.id,
-          CATEGORIA_INSUMO: { nombre: item.categoria?.nombre || item.CATEGORIA_INSUMO?.nombre || 'Insumo' },
-          codigo_lote: item.codigo_lote,
-          stock: item.stock,
-          unidad: item.unidad
-        }))
+        'success'
       );
 
       setShowCreateInsumosModal(false);
 
-      // Esperar un momento para que el backend procese
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      console.log('🔄 Reintentando guardar recepción con inventario actualizado...');
-
-      // Reintentar crear la recepción
       const backendData = await convertToBackendFormat(pendingReceptionData, true);
 
       if (backendData.error === 'MISSING_INVENTORY') {
@@ -708,14 +872,7 @@ export function Reception() {
       if (response.success) {
         showToast(
           `Recepción creada exitosamente`,
-          'success',
-          [{
-            id: 1,
-            CATEGORIA_INSUMO: { nombre: 'Recepción' },
-            codigo_lote: response.data.numero_recepcion,
-            stock: backendData.detalles.length,
-            unidad: 'insumos'
-          }]
+          'success'
         );
         await loadRecepciones();
         resetForm();
@@ -731,216 +888,6 @@ export function Reception() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    const printContent = printRef.current.innerHTML;
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Formato de Recibo de Insumos</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: Arial, sans-serif; 
-              padding: 20px; 
-              background: white;
-              color: black;
-            }
-            .header {
-              display: flex;
-              align-items: center;
-              margin-bottom: 20px;
-              border-bottom: 2px solid #333;
-              padding-bottom: 10px;
-            }
-            .logo {
-              width: 60px;
-              height: 60px;
-              background: #333;
-              border-radius: 50%;
-              margin-right: 20px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: bold;
-            }
-            .title-section {
-              flex: 1;
-              text-align: center;
-            }
-            .company-name {
-              font-size: 16px;
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .document-title {
-              font-size: 18px;
-              font-weight: bold;
-              margin-bottom: 10px;
-            }
-            .format-title {
-              font-size: 14px;
-              margin-bottom: 10px;
-            }
-            .info-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .info-table th, .info-table td {
-              border: 1px solid #333;
-              padding: 8px;
-              text-align: left;
-            }
-            .info-table th {
-              background: #f5f5f5;
-              font-weight: bold;
-            }
-            .supplies-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .supplies-table th, .supplies-table td {
-              border: 1px solid #333;
-              padding: 8px;
-              text-align: left;
-            }
-            .supplies-table th {
-              background: #f5f5f5;
-              font-weight: bold;
-              text-align: center;
-            }
-            .notes-section {
-              margin-bottom: 30px;
-            }
-            .signatures {
-              display: flex;
-              justify-content: space-between;
-              margin-top: 40px;
-            }
-            .signature {
-              text-align: center;
-              width: 200px;
-            }
-            .signature-line {
-              border-top: 1px solid #333;
-              margin-bottom: 5px;
-              margin-top: 40px;
-            }
-            .footer {
-              margin-top: 30px;
-              text-align: center;
-              font-size: 10px;
-              color: #666;
-            }
-          </style>
-        </head>
-        <body>
-          ${printContent}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  };
-
-  const generatePrintableContent = (reception) => {
-    const displayData = reception.supplies ? reception : convertFromBackendFormat(reception);
-
-    return (
-      <PrintContainer ref={printRef}>
-        <PrintHeader>
-          <Logo>RM</Logo>
-          <TitleSection>
-            <CompanyName>ENVASADORA ANCESTRAL</CompanyName>
-            <DocumentTitle>FORMATO DE RECIBO DE INSUMOS</DocumentTitle>
-            <FormatTitle>{displayData.format}</FormatTitle>
-          </TitleSection>
-        </PrintHeader>
-
-        <InfoTable>
-          <tbody>
-            <tr>
-              <InfoHeader>FECHA:</InfoHeader>
-              <InfoCell>{displayData.date}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>RESPONSABLE DEL REGISTRO:</InfoHeader>
-              <InfoCell>{displayData.responsibleRegistry}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>CLIENTE:</InfoHeader>
-              <InfoCell>{displayData.client}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>ORDEN DE ENVASADO:</InfoHeader>
-              <InfoCell>{displayData.shippingOrder}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>LOTE:</InfoHeader>
-              <InfoCell></InfoCell>
-            </tr>
-          </tbody>
-        </InfoTable>
-
-        <RequirementsTitle>REQUERIMIENTOS:</RequirementsTitle>
-
-        <SuppliesTable>
-          <thead>
-            <tr>
-              <SuppliesHeader>NOMBRE DEL INSUMO</SuppliesHeader>
-              <SuppliesHeader>CANTIDAD</SuppliesHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {displayData.supplies.map((supply, index) => (
-              <tr key={index}>
-                <SuppliesCell>{supply.name}</SuppliesCell>
-                <SuppliesCell>{supply.quantity}</SuppliesCell>
-              </tr>
-            ))}
-            {Array.from({ length: Math.max(0, 6 - displayData.supplies.length) }).map((_, index) => (
-              <tr key={`empty-${index}`}>
-                <SuppliesCell>&nbsp;</SuppliesCell>
-                <SuppliesCell>&nbsp;</SuppliesCell>
-              </tr>
-            ))}
-          </tbody>
-        </SuppliesTable>
-
-        <NotesSection>
-          <NotesTitle>NOTAS ADICIONALES:</NotesTitle>
-          <NotesContent>{displayData.additionalNotes || ""}</NotesContent>
-        </NotesSection>
-
-        <Signatures>
-          <Signature>
-            <SignatureLine />
-            <SignatureLabel>ENTREGA</SignatureLabel>
-            <SignatureName>{displayData.deliveredBy}</SignatureName>
-          </Signature>
-          <Signature>
-            <SignatureLine />
-            <SignatureLabel>RECIBE</SignatureLabel>
-            <SignatureName>{displayData.receivedBy}</SignatureName>
-          </Signature>
-        </Signatures>
-
-        <Footer>
-          Prolongación Portes # 1135, Esq. senderos, Pueblo Nuevo Oaxaca de Juárez, Oax. C.P. 68274<br />
-          contacto@envasadoraancestral.mx Tel: 951 756 0687
-        </Footer>
-      </PrintContainer>
-    );
   };
 
   // Mostrar recepciones
@@ -1033,7 +980,7 @@ export function Reception() {
                 <SectionTitle>Información General</SectionTitle>
                 <FormGrid>
                   <FormGroup>
-                    <Label>Fecha</Label>
+                    <Label>Fecha *</Label>
                     <Input
                       type="date"
                       value={formData.date}
@@ -1043,7 +990,7 @@ export function Reception() {
                   </FormGroup>
 
                   <FormGroup>
-                    <Label>Responsable del Registro</Label>
+                    <Label>Responsable del Registro *</Label>
                     <Input
                       type="text"
                       value={formData.responsibleRegistry}
@@ -1070,7 +1017,7 @@ export function Reception() {
                   </FormGroup>
 
                   <FormGroup>
-                    <Label>Orden de Envasado</Label>
+                    <Label>Orden de Envasado *</Label>
                     <Input
                       type="text"
                       value={formData.shippingOrder}
@@ -1079,12 +1026,60 @@ export function Reception() {
                       required
                     />
                   </FormGroup>
+
+                  <FormGroup>
+                    <Label>Lote</Label>
+                    <Input
+                      type="text"
+                      value={formData.lote}
+                      onChange={(e) => handleInputChange('lote', e.target.value)}
+                      placeholder="Número de lote"
+                    />
+                  </FormGroup>
                 </FormGrid>
               </FormSection>
 
               <FormSection>
-                <SectionTitle>Formato del Producto</SectionTitle>
+                <SectionTitle>
+                  Formato del Producto
+                  {formData.client && clientConfig && (
+                    <ClientConfigBadge>
+                      Configuración: {formData.client}
+                    </ClientConfigBadge>
+                  )}
+                </SectionTitle>
+                
+                {!formData.client && (
+                  <InfoMessage>
+                    ℹ️ Seleccione un cliente para ver las variedades y presentaciones disponibles
+                  </InfoMessage>
+                )}
+
                 <FormGrid>
+                  <FormGroup>
+                    <Label>Variedad de Agave *</Label>
+                    <Select
+                      value={formData.variety}
+                      onChange={(e) => handleInputChange('variety', e.target.value)}
+                      required
+                      disabled={!formData.client}
+                    >
+                      <option value="">
+                        {!formData.client ? 'Primero seleccione un cliente' : 'Seleccionar variedad'}
+                      </option>
+                      {variedadesFiltradas.map((variety, index) => (
+                        <option key={index} value={variety}>
+                          {variety}
+                        </option>
+                      ))}
+                    </Select>
+                    {formData.client && (
+                      <FieldHint>
+                        {variedadesFiltradas.length} variedad(es) disponible(s) para {formData.client}
+                      </FieldHint>
+                    )}
+                  </FormGroup>
+
                   <FormGroup>
                     <Label>Presentación *</Label>
                     <Select
@@ -1096,12 +1091,17 @@ export function Reception() {
                       <option value="">
                         {!formData.client ? 'Primero seleccione un cliente' : 'Seleccionar presentación'}
                       </option>
-                      {presentacionesList.map((presentacion, index) => (
+                      {presentacionesFiltradas.map((presentacion, index) => (
                         <option key={index} value={presentacion}>
                           {presentacion}
                         </option>
                       ))}
                     </Select>
+                    {formData.client && (
+                      <FieldHint>
+                        {presentacionesFiltradas.length} presentación(es) disponible(s)
+                      </FieldHint>
+                    )}
                   </FormGroup>
 
                   <FormGroup>
@@ -1110,17 +1110,32 @@ export function Reception() {
                       value={formData.type}
                       onChange={(e) => handleInputChange('type', e.target.value)}
                       required
+                      disabled={!formData.client}
                     >
-                      <option value="Exportación">Exportación</option>
-                      <option value="Nacional">Nacional</option>
+                      <option value="">
+                        {!formData.client ? 'Primero seleccione un cliente' : 'Seleccionar tipo'}
+                      </option>
+                      {tiposFiltrados.map((tipo, index) => (
+                        <option key={index} value={tipo}>
+                          {tipo}
+                        </option>
+                      ))}
                     </Select>
+                    {formData.client && tiposFiltrados.length === 1 && (
+                      <FieldHint $warning>
+                        ⚠️ Este cliente solo maneja producto {tiposFiltrados[0]}
+                      </FieldHint>
+                    )}
                   </FormGroup>
 
                   <FormGroup $fullWidth>
                     <Label>Formato Generado</Label>
-                    <FormatoDisplay>
-                      {formData.format || 'Seleccione presentación y tipo para generar el formato'}
+                    <FormatoDisplay $hasValue={!!formData.format}>
+                      {formData.format || 'Complete los campos anteriores para generar el formato'}
                     </FormatoDisplay>
+                    <FormatoHint>
+                      Formato: CLIENTE - VARIEDAD PRESENTACIÓN TIPO
+                    </FormatoHint>
                   </FormGroup>
                 </FormGrid>
               </FormSection>
@@ -1232,7 +1247,7 @@ export function Reception() {
                 <ReceptionHeader>
                   <ReceptionInfo>
                     <ReceptionTitle>
-                      {reception.client} - {reception.format}
+                      {reception.format || `${reception.client} - Recepción`}
                     </ReceptionTitle>
                     <ReceptionDetails>
                       <Detail>
@@ -1240,6 +1255,7 @@ export function Reception() {
                         {reception.date}
                       </Detail>
                       <Detail>Orden: {reception.shippingOrder}</Detail>
+                      {reception.lote && <Detail>Lote: {reception.lote}</Detail>}
                       <Detail>Insumos: {reception.supplies?.length || 0}</Detail>
                       {reception.estado && (
                         <StatusBadge $estado={reception.estado}>
@@ -1249,18 +1265,45 @@ export function Reception() {
                     </ReceptionDetails>
                   </ReceptionInfo>
                   <ReceptionActions>
-                    <IconButton onClick={() => {
-                      generatePrintableContent(reception);
-                      handlePrint();
-                    }}>
+                    <IconButton 
+                      onClick={() => handlePreviewPDF(reception)}
+                      title="Ver PDF"
+                      disabled={generatingPDF === reception.id}
+                    >
+                      {generatingPDF === reception.id ? (
+                        <SmallSpinner />
+                      ) : (
+                        <IoEyeOutline size={16} />
+                      )}
+                    </IconButton>
+                    
+                    <IconButton 
+                      onClick={() => handleDownloadPDF(reception)}
+                      title="Descargar PDF"
+                      disabled={generatingPDF === reception.id}
+                    >
+                      <IoDownloadOutline size={16} />
+                    </IconButton>
+                    
+                    <IconButton 
+                      onClick={() => handlePrintPDF(reception)}
+                      title="Imprimir"
+                      disabled={generatingPDF === reception.id}
+                    >
                       <IoPrintOutline size={16} />
                     </IconButton>
-                    <IconButton onClick={() => editReception(reception)}>
+                    
+                    <IconButton 
+                      onClick={() => editReception(reception)}
+                      title="Editar"
+                    >
                       <IoDocumentTextOutline size={16} />
                     </IconButton>
+                    
                     <IconButton
                       $danger
                       onClick={() => handleDeleteReception(reception.id)}
+                      title="Eliminar"
                     >
                       <IoTrashOutline size={16} />
                     </IconButton>
@@ -1282,10 +1325,6 @@ export function Reception() {
           </ReceptionsList>
         )}
       </ContentCard>
-
-      <div style={{ display: 'none' }}>
-        {editingReception && generatePrintableContent(editingReception)}
-      </div>
 
       {/* Modal para crear insumos faltantes */}
       {showCreateInsumosModal && (
@@ -1372,6 +1411,8 @@ const PageHeader = styled.header`
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 `;
 
 const HeaderContent = styled.div``;
@@ -1394,6 +1435,7 @@ const Subtitle = styled.p`
 const HeaderActions = styled.div`
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
 `;
 
 const ActionButton = styled.button`
@@ -1431,6 +1473,16 @@ const ErrorMessage = styled.div`
   border: 1px solid #fecaca;
 `;
 
+const InfoMessage = styled.div`
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid #93c5fd;
+  font-size: 0.875rem;
+`;
+
 const LoadingContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -1453,6 +1505,15 @@ const LoadingSpinner = styled.div`
       transform: rotate(360deg);
     }
   }
+`;
+
+const SmallSpinner = styled.div`
+  width: 16px;
+  height: 16px;
+  border: 2px solid ${props => props.theme.bg3};
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 `;
 
 const LoadingText = styled.div`
@@ -1541,6 +1602,19 @@ const SectionTitle = styled.h3`
   color: ${props => props.theme.textprimary};
   margin: 0 0 1rem 0;
   transition: color 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+`;
+
+const ClientConfigBadge = styled.span`
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 12px;
 `;
 
 const SectionTitleRow = styled.div`
@@ -1552,7 +1626,7 @@ const SectionTitleRow = styled.div`
 
 const FormGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
 `;
 
@@ -1613,6 +1687,7 @@ const Select = styled.select`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    background: ${props => props.theme.bg2};
   }
 `;
 
@@ -1639,19 +1714,33 @@ const Textarea = styled.textarea`
   }
 `;
 
+const FieldHint = styled.div`
+  font-size: 0.7rem;
+  color: ${props => props.$warning ? '#d97706' : props.theme.texttertiary};
+  margin-top: 0.25rem;
+  font-style: italic;
+`;
+
 const FormatoDisplay = styled.div`
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid ${props => props.theme.bg3};
+  border: 2px solid ${props => props.$hasValue ? '#10b981' : props.theme.bg3};
   border-radius: 6px;
-  font-size: 0.875rem;
-  background: ${props => props.theme.bg2};
-  color: ${props => props.theme.textprimary};
+  font-size: 0.95rem;
+  background: ${props => props.$hasValue ? '#ecfdf5' : props.theme.bg2};
+  color: ${props => props.$hasValue ? '#065f46' : props.theme.texttertiary};
   min-height: 42px;
   display: flex;
   align-items: center;
-  font-weight: 600;
+  font-weight: ${props => props.$hasValue ? '600' : '400'};
   transition: all 0.2s;
+`;
+
+const FormatoHint = styled.div`
+  font-size: 0.75rem;
+  color: ${props => props.theme.texttertiary};
+  margin-top: 0.25rem;
+  font-style: italic;
 `;
 
 const EmptySuppliesMessage = styled.div`
@@ -1690,7 +1779,7 @@ const FormActions = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
-  padding-top: 1rem;
+  padding: 1rem 1.5rem;
   border-top: 1px solid ${props => props.theme.bg3};
 `;
 
@@ -1807,10 +1896,12 @@ const ReceptionHeader = styled.div`
   align-items: flex-start;
   margin-bottom: 1rem;
   gap: 1rem;
+  flex-wrap: wrap;
 `;
 
 const ReceptionInfo = styled.div`
   flex: 1;
+  min-width: 200px;
 `;
 
 const ReceptionTitle = styled.h3`
@@ -1864,6 +1955,7 @@ const StatusBadge = styled.span`
 const ReceptionActions = styled.div`
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 `;
 
 const IconButton = styled.button`
@@ -1877,6 +1969,8 @@ const IconButton = styled.button`
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  min-width: 32px;
+  min-height: 32px;
   
   &:hover:not(:disabled) {
     background: ${props => props.$danger ? '#fecaca' : props.theme.bg3};
@@ -1903,161 +1997,6 @@ const SupplyTag = styled.span`
   font-size: 0.75rem;
   font-weight: 500;
   transition: background 0.3s ease;
-`;
-
-// Print Components
-const PrintContainer = styled.div`
-  max-width: 800px;
-  margin: 0 auto;
-  background: white;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  color: black;
-`;
-
-const PrintHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #333;
-  padding-bottom: 10px;
-`;
-
-const Logo = styled.div`
-  width: 60px;
-  height: 60px;
-  background: #333;
-  border-radius: 50%;
-  margin-right: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 18px;
-`;
-
-const TitleSection = styled.div`
-  flex: 1;
-  text-align: center;
-`;
-
-const CompanyName = styled.div`
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 5px;
-`;
-
-const DocumentTitle = styled.div`
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 10px;
-`;
-
-const FormatTitle = styled.div`
-  font-size: 14px;
-  margin-bottom: 10px;
-`;
-
-const InfoTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
-`;
-
-const InfoHeader = styled.th`
-  border: 1px solid #333;
-  padding: 8px;
-  background: #f5f5f5;
-  font-weight: bold;
-  text-align: left;
-  width: 30%;
-`;
-
-const InfoCell = styled.td`
-  border: 1px solid #333;
-  padding: 8px;
-  text-align: left;
-`;
-
-const RequirementsTitle = styled.div`
-  font-weight: bold;
-  margin-bottom: 10px;
-  font-size: 14px;
-`;
-
-const SuppliesTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
-`;
-
-const SuppliesHeader = styled.th`
-  border: 1px solid #333;
-  padding: 8px;
-  background: #f5f5f5;
-  font-weight: bold;
-  text-align: center;
-`;
-
-const SuppliesCell = styled.td`
-  border: 1px solid #333;
-  padding: 8px;
-  text-align: left;
-  min-height: 30px;
-`;
-
-const NotesSection = styled.div`
-  margin-bottom: 30px;
-`;
-
-const NotesTitle = styled.div`
-  font-weight: bold;
-  margin-bottom: 10px;
-  font-size: 14px;
-`;
-
-const NotesContent = styled.div`
-  min-height: 40px;
-  border: 1px solid #333;
-  padding: 8px;
-`;
-
-const Signatures = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-top: 40px;
-`;
-
-const Signature = styled.div`
-  text-align: center;
-  width: 200px;
-`;
-
-const SignatureLine = styled.div`
-  border-top: 1px solid #333;
-  margin-bottom: 5px;
-  margin-top: 40px;
-`;
-
-const SignatureLabel = styled.div`
-  font-weight: bold;
-  margin-bottom: 5px;
-  font-size: 12px;
-`;
-
-const SignatureName = styled.div`
-  font-size: 12px;
-  color: #666;
-`;
-
-const Footer = styled.div`
-  margin-top: 30px;
-  text-align: center;
-  font-size: 10px;
-  color: #666;
-  border-top: 1px solid #ccc;
-  padding-top: 10px;
 `;
 
 // Toast Notifications
@@ -2168,20 +2107,6 @@ const MissingItemsList = styled.div`
   padding: 0.5rem;
   background: ${props => props.theme.bg};
   border-radius: 8px;
-  
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: ${props => props.theme.bg2};
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.bg3};
-    border-radius: 3px;
-  }
 `;
 
 const MissingItem = styled.div`
@@ -2228,3 +2153,5 @@ const AlertNote = styled.div`
   border-radius: 6px;
   border-left: 3px solid #3b82f6;
 `;
+
+export default Reception;

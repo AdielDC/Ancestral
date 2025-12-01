@@ -9,8 +9,10 @@ import { Register } from "../pages/Register";
 import { Unauthorized } from "../pages/Unauthorized";
 import { NotFound } from "../pages/NotFound";
 import { Configuracion } from "../pages/Configuracion";
+import { Profile } from "../pages/Profile";
 import { ProtectedRoute } from "../components/Protectedroute";
 import authService from "../services/authService";
+import {ClienteConfig} from "../pages/ClienteConfig";
 
 export function MyRoutes() {
   return (
@@ -79,6 +81,15 @@ export function MyRoutes() {
           </ProtectedRoute>
         }
       />
+
+            <Route
+        path="/clientes"
+        element={
+          <ProtectedRoute requireOperador>
+            <ClienteConfig />
+          </ProtectedRoute>
+        }
+      />
       
         <Route
           path="/configuracion"
@@ -88,6 +99,15 @@ export function MyRoutes() {
             </ProtectedRoute>
           }
         />
+
+              <Route
+        path="/perfil"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Página de acceso no autorizado */}
       <Route path="/unauthorized" element={<Unauthorized />} />

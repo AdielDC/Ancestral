@@ -1,4 +1,8 @@
-import { useState, useRef, useContext, useEffect } from "react";
+// Delivery.jsx - Componente de Entrega de Insumos con generación de PDF
+// Ubicación: src/pages/Delivery.jsx
+// ACTUALIZADO: Incluye generación de PDF profesional con jsPDF
+
+import { useState, useContext, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import {
   IoAddOutline,
@@ -9,11 +13,79 @@ import {
   IoCalendarOutline,
   IoRefreshOutline,
   IoClose,
-  IoWarningOutline
+  IoWarningOutline,
+  IoDownloadOutline,
+  IoEyeOutline
 } from "react-icons/io5";
 import { ThemeContext } from "../App";
 import { entregaService } from "../services/entregaService";
-import { clienteService, presentacionService, inventarioService } from "../services/inventarioService";
+import { 
+  clienteService, 
+  presentacionService, 
+  inventarioService 
+} from "../services/inventarioService";
+
+// Importar el servicio de PDF
+import { downloadEntregaPDF, previewEntregaPDF } from "../services/pdfService";
+
+// Importar servicio de configuración de clientes (opcional, con fallback)
+import { obtenerTodasConfiguraciones } from "../services/clienteConfigService";
+
+// ==================== CONFIGURACIÓN LOCAL DE RESPALDO ====================
+const CLIENTE_CONFIG_FALLBACK = {
+  'THE PRODUCER': {
+    variedades: ['ESPADÍN', 'ENSAMBLE', 'SAN MARTÍN', 'TEPEZTATE', 'ARROQUEÑO'],
+    presentaciones: ['1000 ML', '750 ML', '700 ML', '200 ML'],
+    tipos: ['Nacional', 'Exportación']
+  },
+  'ESPÍRITU CORSA': {
+    variedades: ['ESPADÍN', 'ENSAMBLE', 'ENSAMBLE MADURADO'],
+    presentaciones: ['1000 ML', '750 ML', '200 ML', '50 ML'],
+    tipos: ['Nacional']
+  },
+  'ESPIRITU CORSA': {
+    variedades: ['ESPADÍN', 'ENSAMBLE', 'ENSAMBLE MADURADO'],
+    presentaciones: ['1000 ML', '750 ML', '200 ML', '50 ML'],
+    tipos: ['Nacional']
+  },
+  'ANCESTRAL': {
+    variedades: ['ESPADÍN'],
+    presentaciones: ['750 ML', '375 ML'],
+    tipos: ['Nacional', 'Exportación']
+  }
+};
+
+// Función para normalizar nombres de cliente
+const normalizeClientName = (name) => {
+  if (!name) return '';
+  return name
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+};
+
+// Función para obtener configuración del cliente
+const getClientConfigFromData = (clientName, configuraciones) => {
+  if (!clientName) return null;
+  
+  const normalized = normalizeClientName(clientName);
+  
+  for (const [key, config] of Object.entries(configuraciones)) {
+    if (normalizeClientName(key) === normalized) {
+      return config;
+    }
+  }
+  
+  for (const [key, config] of Object.entries(configuraciones)) {
+    if (normalized.includes(normalizeClientName(key)) || 
+        normalizeClientName(key).includes(normalized)) {
+      return config;
+    }
+  }
+  
+  return null;
+};
 
 // Definir insumos según tipo (Exportación o Nacional)
 const INSUMOS_POR_TIPO = {
@@ -40,16 +112,29 @@ const INSUMOS_POR_TIPO = {
   ]
 };
 
+// Todas las variedades disponibles (por defecto)
+const TODAS_VARIEDADES = [
+  'ESPADÍN', 'ENSAMBLE', 'ENSAMBLE MADURADO', 'SAN MARTÍN', 
+  'TEPEZTATE', 'ARROQUEÑO', 'TOBALÁ', 'CUISHE', 'MADRECUISHE', 
+  'COYOTE', 'MEXICANO', 'BARRIL'
+];
+
+// Todas las presentaciones disponibles (por defecto)
+const TODAS_PRESENTACIONES = ['1000 ML', '750 ML', '700 ML', '375 ML', '200 ML', '50 ML'];
+
+// Todos los tipos disponibles (por defecto)
+const TODOS_TIPOS = ['Nacional', 'Exportación'];
+
 export function Delivery() {
   const { theme } = useContext(ThemeContext);
   const [showForm, setShowForm] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const printRef = useRef();
 
   // Estados para datos del backend
   const [clientes, setClientes] = useState([]);
-  const [presentaciones, setPresentaciones] = useState([]);
+  const [presentacionesDB, setPresentacionesDB] = useState([]);
+  const [clienteConfiguraciones, setClienteConfiguraciones] = useState(CLIENTE_CONFIG_FALLBACK);
   const [entregas, setEntregas] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -57,6 +142,9 @@ export function Delivery() {
 
   // Toast notifications
   const [toasts, setToasts] = useState([]);
+
+  // Estado para generación de PDF
+  const [generatingPDF, setGeneratingPDF] = useState(null);
 
   // Mostrar notificaciones toast
   const showToast = (message, type, items = []) => {
@@ -91,23 +179,43 @@ export function Delivery() {
         setLoadingData(true);
 
         const [clientesRes, presentacionesRes] = await Promise.all([
-          clienteService.getAll(),
-          presentacionService.getAll()
+          clienteService.getAll().catch(err => {
+            console.error('Error cargando clientes:', err);
+            return { data: [] };
+          }),
+          presentacionService.getAll().catch(err => {
+            console.error('Error cargando presentaciones:', err);
+            return { data: [] };
+          })
         ]);
 
         const clientesData = clientesRes.data || clientesRes || [];
         const presentacionesData = presentacionesRes.data || presentacionesRes || [];
 
         setClientes(clientesData);
-        setPresentaciones(presentacionesData);
+        setPresentacionesDB(presentacionesData);
 
-        console.log('✅ Clientes cargados:', clientesData);
-        console.log('✅ Presentaciones cargadas:', presentacionesData);
+        // Intentar cargar configuraciones desde el backend
+        try {
+          const configRes = await obtenerTodasConfiguraciones();
+          if (configRes.success && Object.keys(configRes.data).length > 0) {
+            console.log('✅ Configuraciones cargadas desde el backend');
+            setClienteConfiguraciones(configRes.data);
+          } else {
+            console.log('ℹ️ Usando configuraciones locales de respaldo');
+          }
+        } catch (configError) {
+          console.warn('⚠️ No se pudieron cargar las configuraciones del backend');
+        }
+
+        console.log('✅ Clientes cargados:', clientesData.length);
+        console.log('✅ Presentaciones cargadas:', presentacionesData.length);
 
         // Cargar entregas
         await loadEntregas();
       } catch (err) {
         console.error('❌ Error cargando datos:', err);
+        showToast('Error al cargar datos iniciales', 'error');
       } finally {
         setLoadingData(false);
       }
@@ -123,17 +231,14 @@ export function Delivery() {
     contact: c.persona_contacto
   }));
 
-  // Construir lista de presentaciones
-  const presentacionesList = presentaciones.map(p => p.volumen).sort();
-
   // Estado del formulario
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     responsibleRegistry: "",
     client: "",
     shippingOrder: "",
-    batch: "",
-    variety: "ENSAMBLE",
+    lote: "",
+    variety: "",
     presentation: "",
     type: "Exportación",
     format: "",
@@ -142,6 +247,46 @@ export function Delivery() {
     deliveredBy: "",
     receivedBy: ""
   });
+
+  // ==================== FILTRADO DINÁMICO POR CLIENTE ====================
+  
+  // Obtener configuración del cliente seleccionado
+  const clientConfig = useMemo(() => {
+    return getClientConfigFromData(formData.client, clienteConfiguraciones);
+  }, [formData.client, clienteConfiguraciones]);
+
+  // Variedades filtradas según el cliente
+  const variedadesFiltradas = useMemo(() => {
+    if (clientConfig && clientConfig.variedades) {
+      return clientConfig.variedades;
+    }
+    return TODAS_VARIEDADES;
+  }, [clientConfig]);
+
+  // Presentaciones filtradas según el cliente
+  const presentacionesFiltradas = useMemo(() => {
+    if (clientConfig && clientConfig.presentaciones) {
+      return clientConfig.presentaciones;
+    }
+    if (presentacionesDB.length > 0) {
+      return presentacionesDB.map(p => p.volumen).sort();
+    }
+    return TODAS_PRESENTACIONES;
+  }, [clientConfig, presentacionesDB]);
+
+  // Tipos filtrados según el cliente
+  const tiposFiltrados = useMemo(() => {
+    if (clientConfig && clientConfig.tipos) {
+      return clientConfig.tipos;
+    }
+    return TODOS_TIPOS;
+  }, [clientConfig]);
+
+  // Función para generar el formato
+  const generateFormat = (client, variety, presentation, type) => {
+    if (!client || !variety || !presentation || !type) return '';
+    return `${client} - ${variety} ${presentation} ${type.toUpperCase()}`;
+  };
 
   // Generar insumos automáticamente según tipo y presentación
   const generateSupplies = (type, presentation) => {
@@ -163,23 +308,39 @@ export function Delivery() {
         [field]: value
       };
 
-      // Auto-generar formato y supplies cuando cambian presentation o type
-      if (field === 'presentation' || field === 'type') {
-        const presentation = field === 'presentation' ? value : prev.presentation;
-        const type = field === 'type' ? value : prev.type;
-        const variety = prev.variety;
-
-        if (presentation && type) {
-          newData.format = `${prev.client} - ${variety} ${presentation} ${type}`;
-          newData.supplies = generateSupplies(type, presentation);
+      // Si cambia el cliente, resetear variedad, presentación y tipo
+      if (field === 'client') {
+        newData.variety = "";
+        newData.presentation = "";
+        newData.type = "";
+        newData.format = "";
+        newData.supplies = [];
+        
+        // Si el cliente solo tiene un tipo disponible, seleccionarlo automáticamente
+        const config = getClientConfigFromData(value, clienteConfiguraciones);
+        if (config && config.tipos && config.tipos.length === 1) {
+          newData.type = config.tipos[0];
         }
       }
 
-      // Si cambia el cliente, resetear algunos campos
-      if (field === 'client') {
-        newData.presentation = '';
-        newData.format = '';
-        newData.supplies = [];
+      // Auto-generar formato cuando cambian variety, presentation o type
+      if (['variety', 'presentation', 'type'].includes(field)) {
+        const client = prev.client;
+        const variety = field === 'variety' ? value : prev.variety;
+        const presentation = field === 'presentation' ? value : prev.presentation;
+        const type = field === 'type' ? value : prev.type;
+
+        newData.format = generateFormat(client, variety, presentation, type);
+
+        // Generar supplies cuando cambian presentation o type
+        if (field === 'presentation' || field === 'type') {
+          const currentPresentation = field === 'presentation' ? value : prev.presentation;
+          const currentType = field === 'type' ? value : prev.type;
+          
+          if (currentPresentation && currentType) {
+            newData.supplies = generateSupplies(currentType, currentPresentation);
+          }
+        }
       }
 
       return newData;
@@ -195,7 +356,7 @@ export function Delivery() {
     }));
   };
 
-  // ==================== FUNCIÓN PARA MAPEO DE CATEGORÍAS (IGUAL QUE RECEPTION) ====================
+  // ==================== FUNCIÓN PARA MAPEO DE CATEGORÍAS ====================
   const getCategoriaForInsumo = (nombreInsumo, presentacion = '') => {
     const nombreUpper = nombreInsumo.toUpperCase().trim();
 
@@ -436,11 +597,11 @@ export function Delivery() {
     return {
       fecha_entrega: data.date,
       orden_produccion: data.shippingOrder,
-      lote_produccion_id: null, // Por ahora null, se puede agregar después
+      lote_produccion_id: null,
       cliente_id: clienteId || null,
       entregado_por: data.deliveredBy,
       recibido_por: data.receivedBy,
-      notas_adicionales: `${data.format}\n\n${data.additionalNotes}\n\nResponsable: ${data.responsibleRegistry}\nLote: ${data.batch}`,
+      notas_adicionales: `${data.format}|${data.lote}|${data.additionalNotes}|${data.responsibleRegistry}`,
       usuario_id: localStorage.getItem('usuario_id') || 1,
       detalles: detallesValidos
     };
@@ -448,42 +609,106 @@ export function Delivery() {
 
   // Convertir del formato backend al formato original
   const convertFromBackendFormat = (backendData) => {
-    const notasParts = (backendData.notas_adicionales || "").split('\n\n');
+    const notasParts = (backendData.notas_adicionales || "").split('|');
     const format = notasParts[0] || "";
-    const additionalNotes = notasParts[1] || "";
-    const infoLines = notasParts[2] || "";
-    
-    const responsibleMatch = infoLines.match(/Responsable: (.+)/);
-    const batchMatch = infoLines.match(/Lote: (.+)/);
-    
-    const responsibleRegistry = responsibleMatch ? responsibleMatch[1] : "";
-    const batch = batchMatch ? batchMatch[1] : "";
+    const lote = notasParts[1] || "";
+    const additionalNotes = notasParts[2] || "";
+    const responsibleRegistry = notasParts[3] || "";
 
-    const isExportacion = format.includes('Exportación');
+    const isExportacion = format.toUpperCase().includes('EXPORTACIÓN') || format.toUpperCase().includes('EXPORTACION');
     const type = isExportacion ? 'Exportación' : 'Nacional';
 
     const presentationMatch = format.match(/(\d+\s*(?:ML|L|ml|l))/i);
     const presentation = presentationMatch ? presentationMatch[1].toUpperCase() : "";
 
+    const clientMatch = format.match(/^([^-]+)/);
+    const client = clientMatch ? clientMatch[1].trim() : (backendData.cliente?.nombre || "");
+
+    const varietyMatch = format.match(/-\s*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*\d+\s*(?:ML|ml))/i);
+    const variety = varietyMatch ? varietyMatch[1].trim().toUpperCase() : "";
+
     return {
-      date: backendData.fecha_entrega.split('T')[0],
+      date: backendData.fecha_entrega?.split('T')[0] || '',
       responsibleRegistry: responsibleRegistry,
-      client: backendData.cliente?.nombre || "",
+      client: client,
       shippingOrder: backendData.orden_produccion || "",
-      batch: batch,
-      variety: "ENSAMBLE",
+      lote: lote,
+      variety: variety,
       presentation: presentation,
       type: type,
       format: format,
       supplies: backendData.detalles?.map(d => ({
         name: d.notas || "",
-        quantity: d.cantidad.toString(),
+        quantity: d.cantidad?.toString() || "",
         waste: d.cantidad_desperdicio?.toString() || "0"
       })) || [],
       additionalNotes: additionalNotes,
       deliveredBy: backendData.entregado_por || "",
       receivedBy: backendData.recibido_por || ""
     };
+  };
+
+  // ==================== FUNCIONES DE PDF ====================
+
+  /**
+   * Prepara los datos para el PDF de entrega
+   * Mapea 'waste' a 'merma' que es lo que espera el servicio PDF
+   */
+  const prepareDataForPDF = (delivery) => {
+    const displayData = delivery.supplies ? delivery : convertFromBackendFormat(delivery);
+    
+    return {
+      ...displayData,
+      supplies: displayData.supplies.map(s => ({
+        name: s.name,
+        quantity: s.quantity,
+        merma: s.waste || '0'  // Mapear waste -> merma para el PDF
+      }))
+    };
+  };
+
+  const handleDownloadPDF = async (delivery) => {
+    setGeneratingPDF(delivery.id);
+    
+    try {
+      const pdfData = prepareDataForPDF(delivery);
+      await downloadEntregaPDF(pdfData);
+      showToast('PDF descargado exitosamente', 'success');
+    } catch (err) {
+      console.error('❌ Error al descargar PDF:', err);
+      showToast('Error al generar el PDF', 'error');
+    } finally {
+      setGeneratingPDF(null);
+    }
+  };
+
+  const handlePreviewPDF = async (delivery) => {
+    setGeneratingPDF(delivery.id);
+    
+    try {
+      const pdfData = prepareDataForPDF(delivery);
+      await previewEntregaPDF(pdfData);
+    } catch (err) {
+      console.error('❌ Error al previsualizar PDF:', err);
+      showToast('Error al generar la vista previa', 'error');
+    } finally {
+      setGeneratingPDF(null);
+    }
+  };
+
+  const handlePrintPDF = async (delivery) => {
+    setGeneratingPDF(delivery.id);
+    
+    try {
+      const pdfData = prepareDataForPDF(delivery);
+      await previewEntregaPDF(pdfData);
+      showToast('PDF abierto para impresión', 'info');
+    } catch (err) {
+      console.error('❌ Error al imprimir PDF:', err);
+      showToast('Error al preparar impresión', 'error');
+    } finally {
+      setGeneratingPDF(null);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -541,8 +766,8 @@ export function Delivery() {
       responsibleRegistry: "",
       client: "",
       shippingOrder: "",
-      batch: "",
-      variety: "ENSAMBLE",
+      lote: "",
+      variety: "",
       presentation: "",
       type: "Exportación",
       format: "",
@@ -565,7 +790,7 @@ export function Delivery() {
       setShowForm(true);
     } catch (err) {
       console.error('Error al cargar entrega:', err);
-      alert('Error al cargar la entrega');
+      showToast('Error al cargar la entrega', 'error');
     }
   };
 
@@ -588,219 +813,6 @@ export function Delivery() {
         }
       }
     }
-  };
-
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    const printContent = printRef.current.innerHTML;
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Formato de Entrega de Insumos</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: Arial, sans-serif; 
-              padding: 20px; 
-              background: white;
-              color: black;
-            }
-            .header {
-              display: flex;
-              align-items: center;
-              margin-bottom: 20px;
-              border-bottom: 2px solid #333;
-              padding-bottom: 10px;
-            }
-            .logo {
-              width: 60px;
-              height: 60px;
-              background: #333;
-              border-radius: 50%;
-              margin-right: 20px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: bold;
-            }
-            .title-section {
-              flex: 1;
-              text-align: center;
-            }
-            .company-name {
-              font-size: 16px;
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .document-title {
-              font-size: 18px;
-              font-weight: bold;
-              margin-bottom: 10px;
-            }
-            .format-title {
-              font-size: 14px;
-              margin-bottom: 10px;
-            }
-            .info-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .info-table th, .info-table td {
-              border: 1px solid #333;
-              padding: 8px;
-              text-align: left;
-            }
-            .info-table th {
-              background: #f5f5f5;
-              font-weight: bold;
-            }
-            .supplies-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .supplies-table th, .supplies-table td {
-              border: 1px solid #333;
-              padding: 8px;
-              text-align: left;
-            }
-            .supplies-table th {
-              background: #f5f5f5;
-              font-weight: bold;
-              text-align: center;
-            }
-            .notes-section {
-              margin-bottom: 30px;
-            }
-            .signatures {
-              display: flex;
-              justify-content: space-between;
-              margin-top: 40px;
-            }
-            .signature {
-              text-align: center;
-              width: 200px;
-            }
-            .signature-line {
-              border-top: 1px solid #333;
-              margin-bottom: 5px;
-              margin-top: 40px;
-            }
-            .footer {
-              margin-top: 30px;
-              text-align: center;
-              font-size: 10px;
-              color: #666;
-            }
-          </style>
-        </head>
-        <body>
-          ${printContent}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  };
-
-  const generatePrintableContent = (delivery) => {
-    const displayData = delivery.supplies ? delivery : convertFromBackendFormat(delivery);
-
-    return (
-      <PrintContainer ref={printRef}>
-        <PrintHeader>
-          <Logo>RM</Logo>
-          <TitleSection>
-            <CompanyName>ENVASADORA ANCESTRAL</CompanyName>
-            <DocumentTitle>FORMATO DE ENTREGA DE INSUMOS</DocumentTitle>
-            <FormatTitle>{displayData.format}</FormatTitle>
-          </TitleSection>
-        </PrintHeader>
-
-        <InfoTable>
-          <tbody>
-            <tr>
-              <InfoHeader>FECHA:</InfoHeader>
-              <InfoCell>{displayData.date}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>RESPONSABLE DEL REGISTRO:</InfoHeader>
-              <InfoCell>{displayData.responsibleRegistry}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>CLIENTE:</InfoHeader>
-              <InfoCell>{displayData.client}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>ORDEN DE ENVASADO:</InfoHeader>
-              <InfoCell>{displayData.shippingOrder}</InfoCell>
-            </tr>
-            <tr>
-              <InfoHeader>LOTE:</InfoHeader>
-              <InfoCell>{displayData.batch}</InfoCell>
-            </tr>
-          </tbody>
-        </InfoTable>
-
-        <RequirementsTitle>REQUERIMIENTOS:</RequirementsTitle>
-
-        <SuppliesTable>
-          <thead>
-            <tr>
-              <SuppliesHeader>NOMBRE DEL INSUMO</SuppliesHeader>
-              <SuppliesHeader>CANTIDAD</SuppliesHeader>
-              <SuppliesHeader>MERMA</SuppliesHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {displayData.supplies.map((supply, index) => (
-              <tr key={index}>
-                <SuppliesCell>{supply.name}</SuppliesCell>
-                <SuppliesCell>{supply.quantity}</SuppliesCell>
-                <SuppliesCell>{supply.waste || '0'}</SuppliesCell>
-              </tr>
-            ))}
-            {Array.from({ length: Math.max(0, 6 - displayData.supplies.length) }).map((_, index) => (
-              <tr key={`empty-${index}`}>
-                <SuppliesCell>&nbsp;</SuppliesCell>
-                <SuppliesCell>&nbsp;</SuppliesCell>
-                <SuppliesCell>&nbsp;</SuppliesCell>
-              </tr>
-            ))}
-          </tbody>
-        </SuppliesTable>
-
-        <NotesSection>
-          <NotesTitle>NOTAS ADICIONALES:</NotesTitle>
-          <NotesContent>{displayData.additionalNotes || ""}</NotesContent>
-        </NotesSection>
-
-        <Signatures>
-          <Signature>
-            <SignatureLine />
-            <SignatureLabel>ENTREGA</SignatureLabel>
-            <SignatureName>{displayData.deliveredBy}</SignatureName>
-          </Signature>
-          <Signature>
-            <SignatureLine />
-            <SignatureLabel>RECIBE</SignatureLabel>
-            <SignatureName>{displayData.receivedBy}</SignatureName>
-          </Signature>
-        </Signatures>
-
-        <Footer>
-          Prolongación Portes # 1135, Esq. senderos, Pueblo Nuevo Oaxaca de Juárez, Oax. C.P. 68274<br />
-          contacto@envasadoraancestral.mx Tel: 951 756 0687
-        </Footer>
-      </PrintContainer>
-    );
   };
 
   // Mostrar entregas
@@ -854,7 +866,7 @@ export function Delivery() {
       <PageHeader>
         <HeaderContent>
           <Title>Entrega de Insumos</Title>
-          <Subtitle>Gestión de entregas de materiales para clientes</Subtitle>
+          <Subtitle>Gestión de entregas de materiales para envasado</Subtitle>
         </HeaderContent>
         <HeaderActions>
           <ActionButton onClick={() => loadEntregas()} disabled={loading}>
@@ -893,7 +905,7 @@ export function Delivery() {
                 <SectionTitle>Información General</SectionTitle>
                 <FormGrid>
                   <FormGroup>
-                    <Label>Fecha</Label>
+                    <Label>Fecha *</Label>
                     <Input
                       type="date"
                       value={formData.date}
@@ -903,7 +915,7 @@ export function Delivery() {
                   </FormGroup>
 
                   <FormGroup>
-                    <Label>Responsable del Registro</Label>
+                    <Label>Responsable del Registro *</Label>
                     <Input
                       type="text"
                       value={formData.responsibleRegistry}
@@ -930,7 +942,7 @@ export function Delivery() {
                   </FormGroup>
 
                   <FormGroup>
-                    <Label>Orden de Envasado</Label>
+                    <Label>Orden de Envasado *</Label>
                     <Input
                       type="text"
                       value={formData.shippingOrder}
@@ -944,18 +956,55 @@ export function Delivery() {
                     <Label>Lote</Label>
                     <Input
                       type="text"
-                      value={formData.batch}
-                      onChange={(e) => handleInputChange('batch', e.target.value)}
+                      value={formData.lote}
+                      onChange={(e) => handleInputChange('lote', e.target.value)}
                       placeholder="Número de lote"
-                      required
                     />
                   </FormGroup>
                 </FormGrid>
               </FormSection>
 
               <FormSection>
-                <SectionTitle>Formato del Producto</SectionTitle>
+                <SectionTitle>
+                  Formato del Producto
+                  {formData.client && clientConfig && (
+                    <ClientConfigBadge>
+                      Configuración: {formData.client}
+                    </ClientConfigBadge>
+                  )}
+                </SectionTitle>
+                
+                {!formData.client && (
+                  <InfoMessage>
+                    ℹ️ Seleccione un cliente para ver las variedades y presentaciones disponibles
+                  </InfoMessage>
+                )}
+
                 <FormGrid>
+                  <FormGroup>
+                    <Label>Variedad de Agave *</Label>
+                    <Select
+                      value={formData.variety}
+                      onChange={(e) => handleInputChange('variety', e.target.value)}
+                      required
+                      disabled={!formData.client}
+                    >
+                      <option value="">
+                        {!formData.client ? 'Primero seleccione un cliente' : 'Seleccionar variedad'}
+                      </option>
+                      {variedadesFiltradas.map((variety, index) => (
+                        <option key={index} value={variety}>
+                          {variety}
+                        </option>
+                      ))}
+                    </Select>
+                    {formData.client && (
+                      <FieldHint>
+                        {variedadesFiltradas.length} variedad(es) disponible(s)
+                      </FieldHint>
+                    )}
+                  </FormGroup>
+
                   <FormGroup>
                     <Label>Presentación *</Label>
                     <Select
@@ -967,12 +1016,17 @@ export function Delivery() {
                       <option value="">
                         {!formData.client ? 'Primero seleccione un cliente' : 'Seleccionar presentación'}
                       </option>
-                      {presentacionesList.map((presentacion, index) => (
+                      {presentacionesFiltradas.map((presentacion, index) => (
                         <option key={index} value={presentacion}>
                           {presentacion}
                         </option>
                       ))}
                     </Select>
+                    {formData.client && (
+                      <FieldHint>
+                        {presentacionesFiltradas.length} presentación(es) disponible(s)
+                      </FieldHint>
+                    )}
                   </FormGroup>
 
                   <FormGroup>
@@ -981,17 +1035,32 @@ export function Delivery() {
                       value={formData.type}
                       onChange={(e) => handleInputChange('type', e.target.value)}
                       required
+                      disabled={!formData.client}
                     >
-                      <option value="Exportación">Exportación</option>
-                      <option value="Nacional">Nacional</option>
+                      <option value="">
+                        {!formData.client ? 'Primero seleccione un cliente' : 'Seleccionar tipo'}
+                      </option>
+                      {tiposFiltrados.map((tipo, index) => (
+                        <option key={index} value={tipo}>
+                          {tipo}
+                        </option>
+                      ))}
                     </Select>
+                    {formData.client && tiposFiltrados.length === 1 && (
+                      <FieldHint $warning>
+                        ⚠️ Este cliente solo maneja producto {tiposFiltrados[0]}
+                      </FieldHint>
+                    )}
                   </FormGroup>
 
                   <FormGroup $fullWidth>
                     <Label>Formato Generado</Label>
-                    <FormatoDisplay>
-                      {formData.format || 'Seleccione presentación y tipo para generar el formato'}
+                    <FormatoDisplay $hasValue={!!formData.format}>
+                      {formData.format || 'Complete los campos anteriores para generar el formato'}
                     </FormatoDisplay>
+                    <FormatoHint>
+                      Formato: CLIENTE - VARIEDAD PRESENTACIÓN TIPO
+                    </FormatoHint>
                   </FormGroup>
                 </FormGrid>
               </FormSection>
@@ -1007,6 +1076,11 @@ export function Delivery() {
                   </EmptySuppliesMessage>
                 ) : (
                   <SuppliesList>
+                    <SupplyHeader>
+                      <SupplyHeaderName>Insumo</SupplyHeaderName>
+                      <SupplyHeaderQty>Cantidad</SupplyHeaderQty>
+                      <SupplyHeaderWaste>Merma</SupplyHeaderWaste>
+                    </SupplyHeader>
                     {formData.supplies.map((supply, index) => (
                       <SupplyRow key={index}>
                         <SupplyName>{supply.name}</SupplyName>
@@ -1112,7 +1186,7 @@ export function Delivery() {
                 <DeliveryHeader>
                   <DeliveryInfo>
                     <DeliveryTitle>
-                      {delivery.client} - {delivery.format}
+                      {delivery.format || `${delivery.client} - Entrega`}
                     </DeliveryTitle>
                     <DeliveryDetails>
                       <Detail>
@@ -1120,7 +1194,7 @@ export function Delivery() {
                         {delivery.date}
                       </Detail>
                       <Detail>Orden: {delivery.shippingOrder}</Detail>
-                      <Detail>Lote: {delivery.batch}</Detail>
+                      {delivery.lote && <Detail>Lote: {delivery.lote}</Detail>}
                       <Detail>Insumos: {delivery.supplies?.length || 0}</Detail>
                       {delivery.estado && (
                         <StatusBadge $estado={delivery.estado}>
@@ -1130,18 +1204,45 @@ export function Delivery() {
                     </DeliveryDetails>
                   </DeliveryInfo>
                   <DeliveryActions>
-                    <IconButton onClick={() => {
-                      generatePrintableContent(delivery);
-                      handlePrint();
-                    }}>
+                    <IconButton 
+                      onClick={() => handlePreviewPDF(delivery)}
+                      title="Ver PDF"
+                      disabled={generatingPDF === delivery.id}
+                    >
+                      {generatingPDF === delivery.id ? (
+                        <SmallSpinner />
+                      ) : (
+                        <IoEyeOutline size={16} />
+                      )}
+                    </IconButton>
+                    
+                    <IconButton 
+                      onClick={() => handleDownloadPDF(delivery)}
+                      title="Descargar PDF"
+                      disabled={generatingPDF === delivery.id}
+                    >
+                      <IoDownloadOutline size={16} />
+                    </IconButton>
+                    
+                    <IconButton 
+                      onClick={() => handlePrintPDF(delivery)}
+                      title="Imprimir"
+                      disabled={generatingPDF === delivery.id}
+                    >
                       <IoPrintOutline size={16} />
                     </IconButton>
-                    <IconButton onClick={() => editDelivery(delivery)}>
+                    
+                    <IconButton 
+                      onClick={() => editDelivery(delivery)}
+                      title="Editar"
+                    >
                       <IoDocumentTextOutline size={16} />
                     </IconButton>
+                    
                     <IconButton
                       $danger
                       onClick={() => handleDeleteDelivery(delivery.id)}
+                      title="Eliminar"
                     >
                       <IoTrashOutline size={16} />
                     </IconButton>
@@ -1164,15 +1265,11 @@ export function Delivery() {
           </DeliveriesList>
         )}
       </ContentCard>
-
-      <div style={{ display: 'none' }}>
-        {editingDelivery && generatePrintableContent(editingDelivery)}
-      </div>
     </Container>
   );
 }
 
-// ==================== STYLED COMPONENTS (IGUAL QUE RECEPTION) ====================
+// ==================== STYLED COMPONENTS ====================
 
 const Container = styled.div`
   min-height: 100vh;
@@ -1186,6 +1283,8 @@ const PageHeader = styled.header`
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 `;
 
 const HeaderContent = styled.div``;
@@ -1208,6 +1307,7 @@ const Subtitle = styled.p`
 const HeaderActions = styled.div`
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
 `;
 
 const ActionButton = styled.button`
@@ -1245,6 +1345,16 @@ const ErrorMessage = styled.div`
   border: 1px solid #fecaca;
 `;
 
+const InfoMessage = styled.div`
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid #93c5fd;
+  font-size: 0.875rem;
+`;
+
 const LoadingContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -1267,6 +1377,15 @@ const LoadingSpinner = styled.div`
       transform: rotate(360deg);
     }
   }
+`;
+
+const SmallSpinner = styled.div`
+  width: 16px;
+  height: 16px;
+  border: 2px solid ${props => props.theme.bg3};
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 `;
 
 const LoadingText = styled.div`
@@ -1315,6 +1434,9 @@ const ModalTitle = styled.h2`
   font-weight: 600;
   color: ${props => props.theme.textprimary};
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   transition: color 0.3s ease;
 `;
 
@@ -1352,6 +1474,19 @@ const SectionTitle = styled.h3`
   color: ${props => props.theme.textprimary};
   margin: 0 0 1rem 0;
   transition: color 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+`;
+
+const ClientConfigBadge = styled.span`
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 12px;
 `;
 
 const SectionTitleRow = styled.div`
@@ -1363,7 +1498,7 @@ const SectionTitleRow = styled.div`
 
 const FormGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
 `;
 
@@ -1424,6 +1559,7 @@ const Select = styled.select`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    background: ${props => props.theme.bg2};
   }
 `;
 
@@ -1450,19 +1586,33 @@ const Textarea = styled.textarea`
   }
 `;
 
+const FieldHint = styled.div`
+  font-size: 0.7rem;
+  color: ${props => props.$warning ? '#d97706' : props.theme.texttertiary};
+  margin-top: 0.25rem;
+  font-style: italic;
+`;
+
 const FormatoDisplay = styled.div`
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid ${props => props.theme.bg3};
+  border: 2px solid ${props => props.$hasValue ? '#10b981' : props.theme.bg3};
   border-radius: 6px;
-  font-size: 0.875rem;
-  background: ${props => props.theme.bg2};
-  color: ${props => props.theme.textprimary};
+  font-size: 0.95rem;
+  background: ${props => props.$hasValue ? '#ecfdf5' : props.theme.bg2};
+  color: ${props => props.$hasValue ? '#065f46' : props.theme.texttertiary};
   min-height: 42px;
   display: flex;
   align-items: center;
-  font-weight: 600;
+  font-weight: ${props => props.$hasValue ? '600' : '400'};
   transition: all 0.2s;
+`;
+
+const FormatoHint = styled.div`
+  font-size: 0.75rem;
+  color: ${props => props.theme.texttertiary};
+  margin-top: 0.25rem;
+  font-style: italic;
 `;
 
 const EmptySuppliesMessage = styled.div`
@@ -1478,6 +1628,26 @@ const SuppliesList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+`;
+
+const SupplyHeader = styled.div`
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: ${props => props.theme.bg3};
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: ${props => props.theme.textprimary};
+`;
+
+const SupplyHeaderName = styled.div``;
+const SupplyHeaderQty = styled.div`
+  text-align: center;
+`;
+const SupplyHeaderWaste = styled.div`
+  text-align: center;
 `;
 
 const SupplyRow = styled.div`
@@ -1501,7 +1671,7 @@ const FormActions = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
-  padding-top: 1rem;
+  padding: 1rem 1.5rem;
   border-top: 1px solid ${props => props.theme.bg3};
 `;
 
@@ -1618,10 +1788,12 @@ const DeliveryHeader = styled.div`
   align-items: flex-start;
   margin-bottom: 1rem;
   gap: 1rem;
+  flex-wrap: wrap;
 `;
 
 const DeliveryInfo = styled.div`
   flex: 1;
+  min-width: 200px;
 `;
 
 const DeliveryTitle = styled.h3`
@@ -1675,6 +1847,7 @@ const StatusBadge = styled.span`
 const DeliveryActions = styled.div`
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 `;
 
 const IconButton = styled.button`
@@ -1688,6 +1861,8 @@ const IconButton = styled.button`
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  min-width: 32px;
+  min-height: 32px;
   
   &:hover:not(:disabled) {
     background: ${props => props.$danger ? '#fecaca' : props.theme.bg3};
@@ -1708,167 +1883,12 @@ const SuppliesPreview = styled.div`
 
 const SupplyTag = styled.span`
   padding: 0.25rem 0.75rem;
-  background: ${props => props.$more ? props.theme.bg3 : '#dbeafe'};
-  color: ${props => props.$more ? props.theme.texttertiary : '#1e40af'};
+  background: ${props => props.$more ? props.theme.bg3 : '#fef3c7'};
+  color: ${props => props.$more ? props.theme.texttertiary : '#92400e'};
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 500;
   transition: background 0.3s ease;
-`;
-
-// Print Components
-const PrintContainer = styled.div`
-  max-width: 800px;
-  margin: 0 auto;
-  background: white;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  color: black;
-`;
-
-const PrintHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #333;
-  padding-bottom: 10px;
-`;
-
-const Logo = styled.div`
-  width: 60px;
-  height: 60px;
-  background: #333;
-  border-radius: 50%;
-  margin-right: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 18px;
-`;
-
-const TitleSection = styled.div`
-  flex: 1;
-  text-align: center;
-`;
-
-const CompanyName = styled.div`
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 5px;
-`;
-
-const DocumentTitle = styled.div`
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 10px;
-`;
-
-const FormatTitle = styled.div`
-  font-size: 14px;
-  margin-bottom: 10px;
-`;
-
-const InfoTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
-`;
-
-const InfoHeader = styled.th`
-  border: 1px solid #333;
-  padding: 8px;
-  background: #f5f5f5;
-  font-weight: bold;
-  text-align: left;
-  width: 30%;
-`;
-
-const InfoCell = styled.td`
-  border: 1px solid #333;
-  padding: 8px;
-  text-align: left;
-`;
-
-const RequirementsTitle = styled.div`
-  font-weight: bold;
-  margin-bottom: 10px;
-  font-size: 14px;
-`;
-
-const SuppliesTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
-`;
-
-const SuppliesHeader = styled.th`
-  border: 1px solid #333;
-  padding: 8px;
-  background: #f5f5f5;
-  font-weight: bold;
-  text-align: center;
-`;
-
-const SuppliesCell = styled.td`
-  border: 1px solid #333;
-  padding: 8px;
-  text-align: left;
-  min-height: 30px;
-`;
-
-const NotesSection = styled.div`
-  margin-bottom: 30px;
-`;
-
-const NotesTitle = styled.div`
-  font-weight: bold;
-  margin-bottom: 10px;
-  font-size: 14px;
-`;
-
-const NotesContent = styled.div`
-  min-height: 40px;
-  border: 1px solid #333;
-  padding: 8px;
-`;
-
-const Signatures = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-top: 40px;
-`;
-
-const Signature = styled.div`
-  text-align: center;
-  width: 200px;
-`;
-
-const SignatureLine = styled.div`
-  border-top: 1px solid #333;
-  margin-bottom: 5px;
-  margin-top: 40px;
-`;
-
-const SignatureLabel = styled.div`
-  font-weight: bold;
-  margin-bottom: 5px;
-  font-size: 12px;
-`;
-
-const SignatureName = styled.div`
-  font-size: 12px;
-  color: #666;
-`;
-
-const Footer = styled.div`
-  margin-top: 30px;
-  text-align: center;
-  font-size: 10px;
-  color: #666;
-  border-top: 1px solid #ccc;
-  padding-top: 10px;
 `;
 
 // Toast Notifications
@@ -1894,6 +1914,7 @@ const Toast = styled.div`
       props.$type === 'warning' ? '#d97706' :
         props.$type === 'success' ? '#10b981' :
           props.$type === 'error' ? '#dc2626' :
+            props.$type === 'info' ? '#3b82f6' :
             '#3b82f6'
   };
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -1917,6 +1938,7 @@ const ToastIcon = styled.div`
       props.$type === 'warning' ? '#d97706' :
         props.$type === 'success' ? '#10b981' :
           props.$type === 'error' ? '#dc2626' :
+            props.$type === 'info' ? '#3b82f6' :
             '#3b82f6'
   };
 `;
@@ -1956,3 +1978,5 @@ const ToastClose = styled.button`
     color: ${props => props.theme.textprimary};
   }
 `;
+
+export default Delivery;

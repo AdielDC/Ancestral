@@ -6,6 +6,7 @@ import {
   AiOutlineHome,
   AiOutlineApartment,
   AiOutlineSetting,
+  AiTwotoneReconciliation
 } from "react-icons/ai";
 import { MdOutlineAnalytics, MdLogout, MdAppRegistration } from "react-icons/md";
 import { NavLink } from "react-router-dom";
@@ -105,6 +106,11 @@ const linksArray = [
     label: "Gestión",
     icon: <MdAppRegistration />,
     to: "/registros",
+  },
+  {
+    label: "Clientes",
+    icon: <AiTwotoneReconciliation />,
+    to: "/clientes",
   }
 ];
 

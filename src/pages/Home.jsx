@@ -1,233 +1,589 @@
-import { useContext } from "react";
+// Home.jsx - Dashboard Principal conectado a la API
+// Ubicación: src/pages/Home.jsx
+// NOTA: Requiere instalar recharts: npm install recharts
+
+import { useState, useContext, useEffect } from "react";
 import styled from "styled-components";
 import { ThemeContext } from "../App";
-import { IoWarningOutline, IoCheckmarkCircle, IoStatsChart, IoCube, IoList, IoTrendingUp } from "react-icons/io5";
+import { 
+  IoWarningOutline, 
+  IoCheckmarkCircle, 
+  IoCube, 
+  IoArrowDownCircle,
+  IoArrowUpCircle,
+  IoAlertCircle,
+  IoCalendarOutline,
+  IoRefreshOutline,
+  IoStatsChartOutline,
+  IoTrendingUp
+} from "react-icons/io5";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+  Legend
+} from 'recharts';
 
-// Datos del inventario (puedes moverlos a un archivo JSON separado)
-const inventoryData = {
-  totalItems: 8,
-  categories: 6,
-  adequateStock: 4,
-  lowStock: 3,
-  criticalStock: 1,
-  recentActivity: [
-    {
-      id: 1,
-      type: "low_stock",
-      category: "Botellas",
-      client: "Destilados del Valle",
-      brand: "Valle Sagrado",
-      stock: 180,
-      minStock: 250,
-      unit: "piezas"
-    },
-    {
-      id: 2,
-      type: "critical_stock",
-      category: "Botellas",
-      client: "Destilados del Valle",
-      brand: "Valle Sagrado",
-      variety: "Espadín",
-      stock: 25,
-      minStock: 100,
-      unit: "piezas"
-    },
-    {
-      id: 3,
-      type: "low_stock",
-      category: "Cintillos",
-      client: "Sabores Ancestrales",
-      brand: "Ancestral",
-      stock: 85,
-      minStock: 150,
-      unit: "piezas"
-    }
-  ],
-  categoryBreakdown: [
-    { name: "Botellas", count: 3, percentage: 37.5 },
-    { name: "Tapones", count: 1, percentage: 12.5 },
-    { name: "Cintillos", count: 1, percentage: 12.5 },
-    { name: "Sellos Térmicos", count: 1, percentage: 12.5 },
-    { name: "Etiquetas", count: 1, percentage: 12.5 },
-    { name: "Cajas", count: 1, percentage: 12.5 }
-  ]
+// Importar servicios
+import { inventarioService } from "../services/inventarioService";
+import { recepcionService } from "../services/recepcionService";
+import { entregaService } from "../services/entregaService";
+
+// Colores para gráficas (inspirados en la imagen - azul y naranja/dorado)
+const COLORS = {
+  primary: '#1e3a5f',      // Azul oscuro
+  secondary: '#f5a623',    // Naranja/dorado
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  blue: '#3b82f6',
+  lightBlue: '#60a5fa'
 };
+
+const PIE_COLORS = ['#1e3a5f', '#f5a623', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'];
 
 export function Home() {
   const { theme } = useContext(ThemeContext);
+  
+  // Estados para datos
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    totalInsumos: 0,
+    recepcionesMes: 0,
+    entregasMes: 0,
+    alertasActivas: 0,
+    stockAdecuado: 0,
+    stockBajo: 0,
+    stockCritico: 0
+  });
+  const [movimientosMensuales, setMovimientosMensuales] = useState([]);
+  const [distribucionCategorias, setDistribucionCategorias] = useState([]);
+  const [movimientosArea, setMovimientosArea] = useState([]);
+  const [alertasRecientes, setAlertasRecientes] = useState([]);
+
+  // Cargar datos al montar
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Cargar datos en paralelo
+      const [inventarioRes, recepcionesRes, entregasRes] = await Promise.all([
+        inventarioService.getAll().catch(() => ({ data: [] })),
+        recepcionService.getAll().catch(() => ({ data: [] })),
+        entregaService.getAll().catch(() => ({ data: [] }))
+      ]);
+
+      const inventarioData = inventarioRes.data || inventarioRes || [];
+      const recepcionesData = recepcionesRes.data || recepcionesRes || [];
+      const entregasData = entregasRes.data || entregasRes || [];
+
+      // Calcular KPIs
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      // Filtrar recepciones y entregas del mes actual
+      const recepcionesMes = recepcionesData.filter(r => {
+        const fecha = new Date(r.fecha_recepcion || r.creado_en);
+        return fecha.getMonth() === currentMonth && fecha.getFullYear() === currentYear;
+      });
+
+      const entregasMes = entregasData.filter(e => {
+        const fecha = new Date(e.fecha_entrega || e.creado_en);
+        return fecha.getMonth() === currentMonth && fecha.getFullYear() === currentYear;
+      });
+
+      // Calcular estado del stock
+      let stockAdecuado = 0;
+      let stockBajo = 0;
+      let stockCritico = 0;
+      const alertas = [];
+
+      inventarioData.forEach(item => {
+        const stock = item.stock || 0;
+        const stockMinimo = item.stock_minimo || 100;
+        const porcentaje = stockMinimo > 0 ? (stock / stockMinimo) * 100 : 100;
+
+        if (porcentaje >= 100) {
+          stockAdecuado++;
+        } else if (porcentaje >= 30) {
+          stockBajo++;
+          alertas.push({
+            id: item.id,
+            type: 'low_stock',
+            categoria: item.categoria?.nombre || 'Sin categoría',
+            cliente: item.cliente?.nombre || 'Sin cliente',
+            stock: stock,
+            stockMinimo: stockMinimo,
+            porcentaje: porcentaje.toFixed(0)
+          });
+        } else {
+          stockCritico++;
+          alertas.push({
+            id: item.id,
+            type: 'critical_stock',
+            categoria: item.categoria?.nombre || 'Sin categoría',
+            cliente: item.cliente?.nombre || 'Sin cliente',
+            stock: stock,
+            stockMinimo: stockMinimo,
+            porcentaje: porcentaje.toFixed(0)
+          });
+        }
+      });
+
+      // Ordenar alertas (críticas primero)
+      alertas.sort((a, b) => parseFloat(a.porcentaje) - parseFloat(b.porcentaje));
+      setAlertasRecientes(alertas.slice(0, 5));
+
+      // Actualizar KPIs
+      setDashboardData({
+        totalInsumos: inventarioData.length,
+        recepcionesMes: recepcionesMes.length,
+        entregasMes: entregasMes.length,
+        alertasActivas: stockBajo + stockCritico,
+        stockAdecuado,
+        stockBajo,
+        stockCritico
+      });
+
+      // Calcular movimientos mensuales (últimos 6 meses) para gráfica de barras
+      const movimientos = calcularMovimientosMensuales(recepcionesData, entregasData);
+      setMovimientosMensuales(movimientos);
+
+      // Datos para gráfica de área
+      setMovimientosArea(movimientos);
+
+      // Calcular distribución por categorías
+      const distribucion = calcularDistribucionCategorias(inventarioData);
+      setDistribucionCategorias(distribucion);
+
+    } catch (error) {
+      console.error('Error cargando dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calcular movimientos de los últimos 6 meses
+  const calcularMovimientosMensuales = (recepciones, entregas) => {
+    const meses = [];
+    const now = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+      const fecha = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mes = fecha.toLocaleString('es-MX', { month: 'short' }).toUpperCase();
+      const año = fecha.getFullYear();
+      const mesNum = fecha.getMonth();
+      
+      const recepcionesMes = recepciones.filter(r => {
+        const f = new Date(r.fecha_recepcion || r.creado_en);
+        return f.getMonth() === mesNum && f.getFullYear() === año;
+      }).length;
+
+      const entregasMes = entregas.filter(e => {
+        const f = new Date(e.fecha_entrega || e.creado_en);
+        return f.getMonth() === mesNum && f.getFullYear() === año;
+      }).length;
+
+      meses.push({
+        mes: mes,
+        recepciones: recepcionesMes,
+        entregas: entregasMes
+      });
+    }
+    
+    return meses;
+  };
+
+  // Calcular distribución por categorías
+  const calcularDistribucionCategorias = (inventario) => {
+    const categorias = {};
+    
+    inventario.forEach(item => {
+      const cat = item.categoria?.nombre || 'Sin categoría';
+      if (!categorias[cat]) {
+        categorias[cat] = 0;
+      }
+      categorias[cat]++;
+    });
+
+    return Object.entries(categorias)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  };
+
+  // Calcular porcentaje de stock saludable
+  const porcentajeSaludable = dashboardData.totalInsumos > 0 
+    ? ((dashboardData.stockAdecuado / dashboardData.totalInsumos) * 100).toFixed(0)
+    : 0;
+
+  // Custom tooltip para gráficas
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <TooltipContainer>
+          <TooltipLabel>{label}</TooltipLabel>
+          {payload.map((entry, index) => (
+            <TooltipItem key={index} $color={entry.color}>
+              {entry.name}: <strong>{entry.value}</strong>
+            </TooltipItem>
+          ))}
+        </TooltipContainer>
+      );
+    }
+    return null;
+  };
+
+  if (loading) {
+    return (
+      <Container>
+        <LoadingContainer>
+          <LoadingSpinner />
+          <LoadingText>Cargando dashboard...</LoadingText>
+        </LoadingContainer>
+      </Container>
+    );
+  }
 
   return (
     <Container>
+      {/* Header */}
       <Header>
         <HeaderContent>
           <Title>Dashboard Principal</Title>
-          <Subtitle>Gestión integral de botellas, tapones, cintillos, sellos, etiquetas y cajas</Subtitle>
+          <Subtitle>
+            <IoCalendarOutline size={16} />
+            {new Date().toLocaleDateString('es-MX', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </Subtitle>
         </HeaderContent>
+        <RefreshButton onClick={loadDashboardData}>
+          <IoRefreshOutline size={18} />
+          Actualizar
+        </RefreshButton>
       </Header>
 
-      {/* KPIs principales */}
-      <KPIsContainer>
-        <KPICard $type="primary">
-          <KPIIcon>
-            <IoCube size={32} />
-          </KPIIcon>
-          <KPIContent>
-            <KPINumber>{inventoryData.totalItems}</KPINumber>
+      {/* KPIs - 4 tarjetas en fila */}
+      <KPIsRow>
+        <KPICard>
+          <KPIHeader>
             <KPILabel>Total Insumos</KPILabel>
-          </KPIContent>
+            <KPIIconBadge $color={COLORS.primary}>
+              <IoCube size={16} />
+            </KPIIconBadge>
+          </KPIHeader>
+          <KPINumber>{dashboardData.totalInsumos}</KPINumber>
+          <KPITrend $positive>
+            <IoTrendingUp size={14} />
+            Registrados
+          </KPITrend>
         </KPICard>
 
-        <KPICard $type="info">
-          <KPIIcon>
-            <IoList size={32} />
-          </KPIIcon>
-          <KPIContent>
-            <KPINumber>{inventoryData.categories}</KPINumber>
-            <KPILabel>Categorías</KPILabel>
-          </KPIContent>
+        <KPICard>
+          <KPIHeader>
+            <KPILabel>Recepciones</KPILabel>
+            <KPIIconBadge $color={COLORS.success}>
+              <IoArrowDownCircle size={16} />
+            </KPIIconBadge>
+          </KPIHeader>
+          <KPINumber>{dashboardData.recepcionesMes}</KPINumber>
+          <KPITrend>Este mes</KPITrend>
         </KPICard>
 
-        <KPICard $type="success">
-          <KPIIcon>
-            <IoCheckmarkCircle size={32} />
-          </KPIIcon>
-          <KPIContent>
-            <KPINumber>{inventoryData.adequateStock}</KPINumber>
-            <KPILabel>Stock Adecuado</KPILabel>
-          </KPIContent>
+        <KPICard>
+          <KPIHeader>
+            <KPILabel>Entregas</KPILabel>
+            <KPIIconBadge $color={COLORS.secondary}>
+              <IoArrowUpCircle size={16} />
+            </KPIIconBadge>
+          </KPIHeader>
+          <KPINumber>{dashboardData.entregasMes}</KPINumber>
+          <KPITrend>Este mes</KPITrend>
         </KPICard>
 
-        <KPICard $type="warning">
-          <KPIIcon>
-            <IoWarningOutline size={32} />
-          </KPIIcon>
-          <KPIContent>
-            <KPINumber>{inventoryData.lowStock}</KPINumber>
-            <KPILabel>Stock Bajo</KPILabel>
-          </KPIContent>
+        <KPICard>
+          <KPIHeader>
+            <KPILabel>Alertas</KPILabel>
+            <KPIIconBadge $color={dashboardData.alertasActivas > 0 ? COLORS.warning : COLORS.success}>
+              {dashboardData.alertasActivas > 0 ? <IoAlertCircle size={16} /> : <IoCheckmarkCircle size={16} />}
+            </KPIIconBadge>
+          </KPIHeader>
+          <KPINumber $alert={dashboardData.alertasActivas > 0}>{dashboardData.alertasActivas}</KPINumber>
+          <KPITrend $alert={dashboardData.alertasActivas > 0}>
+            {dashboardData.alertasActivas > 0 ? 'Requieren atención' : 'Todo en orden'}
+          </KPITrend>
         </KPICard>
-      </KPIsContainer>
+      </KPIsRow>
 
-      {/* Contenido del dashboard */}
-      <DashboardGrid>
+      {/* Grid Principal - Gráficas */}
+      <MainGrid>
+        {/* Gráfica de Barras - Resultados Mensuales (ocupa 2 columnas) */}
+        <ChartCard $large>
+          <ChartHeader>
+            <ChartTitle>
+              <IoStatsChartOutline size={20} />
+              Movimientos Mensuales
+            </ChartTitle>
+            <ChartBadge>Últimos 6 meses</ChartBadge>
+          </ChartHeader>
+          <ChartBody>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={movimientosMensuales} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                <XAxis 
+                  dataKey="mes" 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                />
+                <YAxis 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend 
+                  iconType="circle"
+                  wrapperStyle={{ paddingTop: '20px' }}
+                />
+                <Bar 
+                  dataKey="recepciones" 
+                  name="Recepciones" 
+                  fill={COLORS.primary}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={40}
+                />
+                <Bar 
+                  dataKey="entregas" 
+                  name="Entregas" 
+                  fill={COLORS.secondary}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartBody>
+        </ChartCard>
+
+        {/* Gráfica de Dona - Distribución */}
+        <ChartCard>
+          <ChartHeader>
+            <ChartTitle>Stock por Categoría</ChartTitle>
+          </ChartHeader>
+          <DonutWrapper>
+            <DonutChartContainer>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={distribucionCategorias}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {distribucionCategorias.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <DonutCenterText>
+                <DonutPercentage>{porcentajeSaludable}%</DonutPercentage>
+                <DonutLabel>Stock OK</DonutLabel>
+              </DonutCenterText>
+            </DonutChartContainer>
+            <DonutLegend>
+              {distribucionCategorias.map((item, index) => (
+                <LegendRow key={index}>
+                  <LegendDot $color={PIE_COLORS[index % PIE_COLORS.length]} />
+                  <LegendName>{item.name}</LegendName>
+                </LegendRow>
+              ))}
+            </DonutLegend>
+          </DonutWrapper>
+        </ChartCard>
+
+        {/* Gráfica de Área - Tendencia */}
+        <ChartCard>
+          <ChartHeader>
+            <ChartTitle>Tendencia de Movimientos</ChartTitle>
+            <LegendInline>
+              <LegendItemInline>
+                <LegendDot $color={COLORS.primary} />
+                Recepciones
+              </LegendItemInline>
+              <LegendItemInline>
+                <LegendDot $color={COLORS.secondary} />
+                Entregas
+              </LegendItemInline>
+            </LegendInline>
+          </ChartHeader>
+          <ChartBody $small>
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={movimientosArea} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRecepciones" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorEntregas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.secondary} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={COLORS.secondary} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis 
+                  dataKey="mes" 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 10 }}
+                />
+                <YAxis hide />
+                <Tooltip content={<CustomTooltip />} />
+                <Area 
+                  type="monotone" 
+                  dataKey="recepciones" 
+                  stroke={COLORS.primary}
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorRecepciones)" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="entregas" 
+                  stroke={COLORS.secondary}
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorEntregas)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartBody>
+        </ChartCard>
+
         {/* Alertas de Stock */}
-        <DashboardCard>
-          <CardHeader>
-            <CardTitle>
-              <IoWarningOutline size={20} />
-              Alertas de Inventario
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {inventoryData.recentActivity.length > 0 ? (
+        <ChartCard>
+          <ChartHeader>
+            <ChartTitle>
+              <IoWarningOutline size={18} />
+              Alertas de Stock
+            </ChartTitle>
+            <AlertCount $hasAlerts={alertasRecientes.length > 0}>
+              {alertasRecientes.length}
+            </AlertCount>
+          </ChartHeader>
+          <AlertsBody>
+            {alertasRecientes.length > 0 ? (
               <AlertsList>
-                {inventoryData.recentActivity.map(item => (
-                  <AlertItem key={item.id} $type={item.type}>
-                    <AlertBadge $type={item.type}>
-                      {item.type === 'critical_stock' ? '🚨 Crítico' : '⚠️ Bajo'}
-                    </AlertBadge>
-                    <AlertDetails>
-                      <AlertTitle>
-                        {item.category} - {item.client}
-                      </AlertTitle>
-                      <AlertInfo>
-                        Stock actual: <strong>{item.stock} {item.unit}</strong> | 
-                        Mínimo: {item.minStock} {item.unit}
-                      </AlertInfo>
-                    </AlertDetails>
-                  </AlertItem>
+                {alertasRecientes.map((alerta, index) => (
+                  <AlertRow key={index} $type={alerta.type}>
+                    <AlertIndicator $type={alerta.type} />
+                    <AlertInfo>
+                      <AlertCategory>{alerta.categoria}</AlertCategory>
+                      <AlertClient>{alerta.cliente}</AlertClient>
+                    </AlertInfo>
+                    <AlertStock>
+                      <AlertStockValue $type={alerta.type}>{alerta.stock}</AlertStockValue>
+                      <AlertStockMin>/ {alerta.stockMinimo}</AlertStockMin>
+                    </AlertStock>
+                  </AlertRow>
                 ))}
               </AlertsList>
             ) : (
-              <EmptyMessage>No hay alertas de inventario</EmptyMessage>
+              <EmptyAlerts>
+                <IoCheckmarkCircle size={40} />
+                <EmptyText>¡Todo en orden!</EmptyText>
+                <EmptySubtext>No hay alertas activas</EmptySubtext>
+              </EmptyAlerts>
             )}
-          </CardContent>
-        </DashboardCard>
+          </AlertsBody>
+        </ChartCard>
+      </MainGrid>
 
-        {/* Distribución por Categorías */}
-        <DashboardCard>
-          <CardHeader>
-            <CardTitle>
-              <IoStatsChart size={20} />
-              Distribución por Categorías
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CategoriesList>
-              {inventoryData.categoryBreakdown.map((category, index) => (
-                <CategoryItem key={index}>
-                  <CategoryInfo>
-                    <CategoryName>{category.name}</CategoryName>
-                    <CategoryCount>{category.count} insumos</CategoryCount>
-                  </CategoryInfo>
-                  <ProgressBar>
-                    <ProgressFill $percentage={category.percentage} />
-                  </ProgressBar>
-                  <CategoryPercentage>{category.percentage}%</CategoryPercentage>
-                </CategoryItem>
-              ))}
-            </CategoriesList>
-          </CardContent>
-        </DashboardCard>
+      {/* Resumen de Estado del Inventario */}
+      <StockSummary>
+        <SummaryTitle>Estado General del Inventario</SummaryTitle>
+        <SummaryCards>
+          <SummaryCard $type="success">
+            <SummaryIcon $type="success">
+              <IoCheckmarkCircle size={24} />
+            </SummaryIcon>
+            <SummaryInfo>
+              <SummaryValue>{dashboardData.stockAdecuado}</SummaryValue>
+              <SummaryLabel>Stock Adecuado</SummaryLabel>
+            </SummaryInfo>
+            <SummaryBar>
+              <SummaryProgress 
+                $type="success" 
+                $width={dashboardData.totalInsumos > 0 ? (dashboardData.stockAdecuado / dashboardData.totalInsumos) * 100 : 0} 
+              />
+            </SummaryBar>
+          </SummaryCard>
 
-        {/* Resumen Rápido */}
-        <DashboardCard $span>
-          <CardHeader>
-            <CardTitle>
-              <IoTrendingUp size={20} />
-              Resumen de Actividad
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SummaryGrid>
-              <SummaryItem>
-                <SummaryLabel>Insumos con Stock Crítico</SummaryLabel>
-                <SummaryValue $critical>{inventoryData.criticalStock}</SummaryValue>
-                <SummaryDescription>
-                  Menos del 30% del stock mínimo
-                </SummaryDescription>
-              </SummaryItem>
+          <SummaryCard $type="warning">
+            <SummaryIcon $type="warning">
+              <IoWarningOutline size={24} />
+            </SummaryIcon>
+            <SummaryInfo>
+              <SummaryValue>{dashboardData.stockBajo}</SummaryValue>
+              <SummaryLabel>Stock Bajo</SummaryLabel>
+            </SummaryInfo>
+            <SummaryBar>
+              <SummaryProgress 
+                $type="warning" 
+                $width={dashboardData.totalInsumos > 0 ? (dashboardData.stockBajo / dashboardData.totalInsumos) * 100 : 0} 
+              />
+            </SummaryBar>
+          </SummaryCard>
 
-              <SummaryItem>
-                <SummaryLabel>Insumos con Stock Bajo</SummaryLabel>
-                <SummaryValue $warning>{inventoryData.lowStock}</SummaryValue>
-                <SummaryDescription>
-                  Por debajo del stock mínimo
-                </SummaryDescription>
-              </SummaryItem>
-
-              <SummaryItem>
-                <SummaryLabel>Tasa de Stock Adecuado</SummaryLabel>
-                <SummaryValue $success>
-                  {((inventoryData.adequateStock / inventoryData.totalItems) * 100).toFixed(0)}%
-                </SummaryValue>
-                <SummaryDescription>
-                  {inventoryData.adequateStock} de {inventoryData.totalItems} insumos
-                </SummaryDescription>
-              </SummaryItem>
-
-              <SummaryItem>
-                <SummaryLabel>Categorías Activas</SummaryLabel>
-                <SummaryValue>{inventoryData.categories}</SummaryValue>
-                <SummaryDescription>
-                  Total de tipos de insumos
-                </SummaryDescription>
-              </SummaryItem>
-            </SummaryGrid>
-          </CardContent>
-        </DashboardCard>
-      </DashboardGrid>
+          <SummaryCard $type="danger">
+            <SummaryIcon $type="danger">
+              <IoAlertCircle size={24} />
+            </SummaryIcon>
+            <SummaryInfo>
+              <SummaryValue>{dashboardData.stockCritico}</SummaryValue>
+              <SummaryLabel>Stock Crítico</SummaryLabel>
+            </SummaryInfo>
+            <SummaryBar>
+              <SummaryProgress 
+                $type="danger" 
+                $width={dashboardData.totalInsumos > 0 ? (dashboardData.stockCritico / dashboardData.totalInsumos) * 100 : 0} 
+              />
+            </SummaryBar>
+          </SummaryCard>
+        </SummaryCards>
+      </StockSummary>
     </Container>
   );
 }
 
-// Styled Components
+// ==================== STYLED COMPONENTS ====================
+
 const Container = styled.div`
-  height: 100vh;
-  overflow-y: auto;
+  min-height: 100vh;
   background: ${props => props.theme.bg};
-  padding: 1.5rem;
-  transition: background 0.3s ease;
+  padding: 1.5rem 2rem;
+  overflow-y: auto;
   
   /* Personalizar scrollbar */
   &::-webkit-scrollbar {
@@ -242,296 +598,500 @@ const Container = styled.div`
     background: ${props => props.theme.barrascroll};
     border-radius: 4px;
   }
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80vh;
+  gap: 1rem;
+`;
+
+const LoadingSpinner = styled.div`
+  width: 48px;
+  height: 48px;
+  border: 4px solid ${props => props.theme.bg3};
+  border-top-color: ${COLORS.primary};
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
   
-  &::-webkit-scrollbar-thumb:hover {
-    background: ${props => props.theme.texttertiary};
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 `;
 
+const LoadingText = styled.div`
+  color: ${props => props.theme.texttertiary};
+  font-size: 0.95rem;
+`;
+
+// Header
 const Header = styled.header`
-  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
 `;
 
 const HeaderContent = styled.div``;
 
 const Title = styled.h1`
-  font-size: 2.5rem;
-  font-weight: bold;
+  font-size: 1.75rem;
+  font-weight: 700;
   color: ${props => props.theme.textprimary};
-  margin: 0 0 0.5rem 0;
-  transition: color 0.3s ease;
+  margin: 0 0 0.25rem 0;
 `;
 
 const Subtitle = styled.p`
   color: ${props => props.theme.texttertiary};
-  font-size: 1.1rem;
+  font-size: 0.875rem;
   margin: 0;
-  transition: color 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-transform: capitalize;
 `;
 
-const KPIsContainer = styled.div`
+const RefreshButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: ${props => props.theme.bgtgderecha};
+  color: ${props => props.theme.textprimary};
+  border: 1px solid ${props => props.theme.bg3};
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${props => props.theme.bg2};
+    border-color: ${COLORS.primary};
+  }
+`;
+
+// KPIs Row
+const KPIsRow = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const KPICard = styled.div`
   background: ${props => props.theme.bgtgderecha};
-  padding: 1.5rem;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  border-left: 4px solid ${props => {
-    switch(props.$type) {
-      case 'primary': return '#3b82f6';
-      case 'info': return '#8b5cf6';
-      case 'success': return '#10b981';
-      case 'warning': return '#f59e0b';
-      default: return '#3b82f6';
-    }
-  }};
-  transition: all 0.3s ease;
-  
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 `;
 
-const KPIIcon = styled.div`
-  width: 64px;
-  height: 64px;
+const KPIHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+`;
+
+const KPILabel = styled.span`
+  font-size: 0.8rem;
+  color: ${props => props.theme.texttertiary};
+  font-weight: 500;
+`;
+
+const KPIIconBadge = styled.div`
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.theme.bg2};
-  border-radius: 12px;
-  color: ${props => props.theme.textprimary};
-  transition: all 0.3s ease;
-`;
-
-const KPIContent = styled.div`
-  flex: 1;
+  background: ${props => `${props.$color}15`};
+  color: ${props => props.$color};
 `;
 
 const KPINumber = styled.div`
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: ${props => props.theme.textprimary};
+  font-size: 2rem;
+  font-weight: 700;
+  color: ${props => props.$alert ? COLORS.warning : props.theme.textprimary};
   line-height: 1;
-  margin-bottom: 0.25rem;
-  transition: color 0.3s ease;
+  margin-bottom: 0.5rem;
 `;
 
-const KPILabel = styled.div`
-  font-size: 0.875rem;
-  color: ${props => props.theme.texttertiary};
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 500;
-  transition: color 0.3s ease;
+const KPITrend = styled.div`
+  font-size: 0.75rem;
+  color: ${props => props.$alert ? COLORS.warning : props.$positive ? COLORS.success : props.theme.texttertiary};
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 `;
 
-const DashboardGrid = styled.div`
+// Main Grid
+const MainGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
-const DashboardCard = styled.div`
+const ChartCard = styled.div`
   background: ${props => props.theme.bgtgderecha};
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  grid-column: ${props => props.$span ? '1 / -1' : 'auto'};
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  
+  ${props => props.$large && `
+    grid-row: span 1;
+  `}
 `;
 
-const CardHeader = styled.div`
-  padding: 1.5rem;
+const ChartHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
   border-bottom: 1px solid ${props => props.theme.bg3};
 `;
 
-const CardTitle = styled.h2`
-  font-size: 1.25rem;
+const ChartTitle = styled.h3`
+  font-size: 0.95rem;
   font-weight: 600;
   color: ${props => props.theme.textprimary};
   margin: 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  transition: color 0.3s ease;
 `;
 
-const CardContent = styled.div`
-  padding: 1.5rem;
+const ChartBadge = styled.span`
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  background: ${COLORS.primary}15;
+  color: ${COLORS.primary};
+  border-radius: 12px;
+  font-weight: 500;
+`;
+
+const ChartBody = styled.div`
+  padding: ${props => props.$small ? '1rem' : '1rem 0.5rem'};
+`;
+
+// Donut Chart
+const DonutWrapper = styled.div`
+  padding: 1rem;
+`;
+
+const DonutChartContainer = styled.div`
+  position: relative;
+  margin-bottom: 0.5rem;
+`;
+
+const DonutCenterText = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+`;
+
+const DonutPercentage = styled.div`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: ${props => props.theme.textprimary};
+`;
+
+const DonutLabel = styled.div`
+  font-size: 0.7rem;
+  color: ${props => props.theme.texttertiary};
+`;
+
+const DonutLegend = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.5rem;
+`;
+
+const LegendRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const LegendDot = styled.div`
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: ${props => props.$color};
+  flex-shrink: 0;
+`;
+
+const LegendName = styled.span`
+  font-size: 0.75rem;
+  color: ${props => props.theme.texttertiary};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const LegendInline = styled.div`
+  display: flex;
+  gap: 1rem;
+`;
+
+const LegendItemInline = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: ${props => props.theme.texttertiary};
+`;
+
+// Alerts
+const AlertsBody = styled.div`
+  padding: 1rem;
+  max-height: 220px;
+  overflow-y: auto;
 `;
 
 const AlertsList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.6rem;
 `;
 
-const AlertItem = styled.div`
+const AlertRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: ${props => props.$type === 'critical_stock' ? '#fef2f2' : '#fffbeb'};
+  border-radius: 8px;
+`;
+
+const AlertIndicator = styled.div`
+  width: 4px;
+  height: 32px;
+  border-radius: 2px;
+  background: ${props => props.$type === 'critical_stock' ? COLORS.danger : COLORS.warning};
+`;
+
+const AlertInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const AlertCategory = styled.div`
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: ${props => props.theme.textprimary};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const AlertClient = styled.div`
+  font-size: 0.7rem;
+  color: ${props => props.theme.texttertiary};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const AlertStock = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+`;
+
+const AlertStockValue = styled.span`
+  font-size: 1rem;
+  font-weight: 700;
+  color: ${props => props.$type === 'critical_stock' ? COLORS.danger : COLORS.warning};
+`;
+
+const AlertStockMin = styled.span`
+  font-size: 0.7rem;
+  color: ${props => props.theme.texttertiary};
+`;
+
+const AlertCount = styled.span`
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: ${props => props.$hasAlerts ? '#fef3c7' : '#d1fae5'};
+  color: ${props => props.$hasAlerts ? '#92400e' : '#065f46'};
+`;
+
+const EmptyAlerts = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  color: ${COLORS.success};
+`;
+
+const EmptyText = styled.div`
+  font-weight: 600;
+  margin-top: 0.5rem;
+  color: ${props => props.theme.textprimary};
+`;
+
+const EmptySubtext = styled.div`
+  font-size: 0.8rem;
+  color: ${props => props.theme.texttertiary};
+`;
+
+// Stock Summary
+const StockSummary = styled.div`
+  background: ${props => props.theme.bgtgderecha};
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+`;
+
+const SummaryTitle = styled.h3`
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: ${props => props.theme.textprimary};
+  margin: 0 0 1rem 0;
+`;
+
+const SummaryCards = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const SummaryCard = styled.div`
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: ${props => props.$type === 'critical_stock' ? 
-    'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)'};
-  border-radius: 8px;
-  border-left: 3px solid ${props => props.$type === 'critical_stock' ? 
-    '#ef4444' : '#f59e0b'};
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background: ${props => props.$type === 'critical_stock' ? 
-      'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)'};
-  }
+  background: ${props => props.theme.bg2};
+  border-radius: 10px;
 `;
 
-const AlertBadge = styled.span`
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: ${props => props.$type === 'critical_stock' ? 
-    '#ef4444' : '#f59e0b'};
-  color: white;
-  white-space: nowrap;
-`;
-
-const AlertDetails = styled.div`
-  flex: 1;
-`;
-
-const AlertTitle = styled.div`
-  font-weight: 600;
-  color: ${props => props.theme.textprimary};
-  margin-bottom: 0.25rem;
-  transition: color 0.3s ease;
-`;
-
-const AlertInfo = styled.div`
-  font-size: 0.875rem;
-  color: ${props => props.theme.texttertiary};
-  transition: color 0.3s ease;
-  
-  strong {
-    color: ${props => props.theme.textprimary};
-    font-weight: 600;
-  }
-`;
-
-const EmptyMessage = styled.div`
-  text-align: center;
-  padding: 2rem;
-  color: ${props => props.theme.texttertiary};
-  font-style: italic;
-  transition: color 0.3s ease;
-`;
-
-const CategoriesList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-`;
-
-const CategoryItem = styled.div`
+const SummaryIcon = styled.div`
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 1rem;
-`;
-
-const CategoryInfo = styled.div`
-  min-width: 150px;
-`;
-
-const CategoryName = styled.div`
-  font-weight: 600;
-  color: ${props => props.theme.textprimary};
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
-  transition: color 0.3s ease;
-`;
-
-const CategoryCount = styled.div`
-  font-size: 0.75rem;
-  color: ${props => props.theme.texttertiary};
-  transition: color 0.3s ease;
-`;
-
-const ProgressBar = styled.div`
-  flex: 1;
-  height: 8px;
-  background: ${props => props.theme.bg2};
-  border-radius: 4px;
-  overflow: hidden;
-  transition: background 0.3s ease;
-`;
-
-const ProgressFill = styled.div`
-  height: 100%;
-  width: ${props => props.$percentage}%;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  border-radius: 4px;
-  transition: width 0.3s ease;
-`;
-
-const CategoryPercentage = styled.div`
-  min-width: 45px;
-  text-align: right;
-  font-weight: 600;
-  color: ${props => props.theme.textprimary};
-  font-size: 0.875rem;
-  transition: color 0.3s ease;
-`;
-
-const SummaryGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-`;
-
-const SummaryItem = styled.div`
-  text-align: center;
-  padding: 1.5rem;
-  background: ${props => props.theme.bg2};
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const SummaryLabel = styled.div`
-  font-size: 0.875rem;
-  color: ${props => props.theme.texttertiary};
-  margin-bottom: 0.75rem;
-  font-weight: 500;
-  transition: color 0.3s ease;
-`;
-
-const SummaryValue = styled.div`
-  font-size: 2.5rem;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-  transition: color 0.3s ease;
+  justify-content: center;
+  background: ${props => {
+    switch(props.$type) {
+      case 'success': return '#d1fae5';
+      case 'warning': return '#fef3c7';
+      case 'danger': return '#fee2e2';
+      default: return '#e5e7eb';
+    }
+  }};
   color: ${props => {
-    if (props.$critical) return '#ef4444';
-    if (props.$warning) return '#f59e0b';
-    if (props.$success) return '#10b981';
-    return props.theme.textprimary;
+    switch(props.$type) {
+      case 'success': return COLORS.success;
+      case 'warning': return COLORS.warning;
+      case 'danger': return COLORS.danger;
+      default: return '#6b7280';
+    }
   }};
 `;
 
-const SummaryDescription = styled.div`
+const SummaryInfo = styled.div`
+  flex: 1;
+`;
+
+const SummaryValue = styled.div`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: ${props => props.theme.textprimary};
+  line-height: 1;
+`;
+
+const SummaryLabel = styled.div`
   font-size: 0.75rem;
   color: ${props => props.theme.texttertiary};
-  transition: color 0.3s ease;
+  margin-top: 0.25rem;
 `;
+
+const SummaryBar = styled.div`
+  width: 60px;
+  height: 6px;
+  background: ${props => props.theme.bg3};
+  border-radius: 3px;
+  overflow: hidden;
+`;
+
+const SummaryProgress = styled.div`
+  height: 100%;
+  width: ${props => Math.min(props.$width, 100)}%;
+  border-radius: 3px;
+  background: ${props => {
+    switch(props.$type) {
+      case 'success': return COLORS.success;
+      case 'warning': return COLORS.warning;
+      case 'danger': return COLORS.danger;
+      default: return '#6b7280';
+    }
+  }};
+  transition: width 0.5s ease;
+`;
+
+// Tooltip
+const TooltipContainer = styled.div`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+`;
+
+const TooltipLabel = styled.div`
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+  color: #374151;
+`;
+
+const TooltipItem = styled.div`
+  font-size: 0.8rem;
+  color: ${props => props.$color || '#6b7280'};
+  
+  strong {
+    color: #111827;
+  }
+`;
+
+export default Home;
