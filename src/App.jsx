@@ -84,11 +84,11 @@ function App() {
 
 const Container = styled.div`
   display: grid;
-  grid-template-columns: 90px auto;
+  grid-template-columns: 80px auto;
   background: ${({ theme }) => theme.bgtotal};
   transition: all 0.3s;
   &.active {
-    grid-template-columns: 300px auto;
+    grid-template-columns: 260px auto;
   }
   color: ${({ theme }) => theme.text};
   min-height: 100vh;

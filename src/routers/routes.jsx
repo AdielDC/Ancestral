@@ -13,6 +13,7 @@ import { Profile } from "../pages/Profile";
 import { ProtectedRoute } from "../components/Protectedroute";
 import authService from "../services/authService";
 import {ClienteConfig} from "../pages/ClienteConfig";
+import {Alerts} from "../pages/Alerts";
 
 export function MyRoutes() {
   return (
@@ -76,7 +77,7 @@ export function MyRoutes() {
       <Route
         path="/registros"
         element={
-          <ProtectedRoute requireOperador>
+          <ProtectedRoute requireAdmin>
             <Clients />
           </ProtectedRoute>
         }
@@ -85,7 +86,7 @@ export function MyRoutes() {
             <Route
         path="/clientes"
         element={
-          <ProtectedRoute requireOperador>
+          <ProtectedRoute requireAdmin>
             <ClienteConfig />
           </ProtectedRoute>
         }
@@ -94,8 +95,17 @@ export function MyRoutes() {
         <Route
           path="/configuracion"
           element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute requireAdmin>
                 <Configuracion/>
+            </ProtectedRoute>
+          }
+        />
+
+                <Route
+          path="/alertas"
+          element={
+            <ProtectedRoute >
+                <Alerts/>
             </ProtectedRoute>
           }
         />

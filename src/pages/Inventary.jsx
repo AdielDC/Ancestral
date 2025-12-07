@@ -6,7 +6,7 @@ import { useInventario } from "../hooks/useInventario";
 
 export function Inventary() {
   const { theme } = useContext(ThemeContext);
-  
+
   // Hook personalizado para manejo de inventario
   const {
     inventory,
@@ -35,7 +35,7 @@ export function Inventary() {
   const [movementQuantity, setMovementQuantity] = useState('');
   const [movementNote, setMovementNote] = useState('');
   const [movementReference, setMovementReference] = useState('');
-  
+
   const [filters, setFilters] = useState({
     category: "all",
     client: "all",
@@ -48,7 +48,7 @@ export function Inventary() {
   const showToast = (message, type, items = []) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type, items }]);
-    
+
     setTimeout(() => {
       setToasts(prev => prev.filter(toast => toast.id !== id));
     }, 8000);
@@ -59,17 +59,17 @@ export function Inventary() {
     const loadAlertas = async () => {
       try {
         const alertas = await getStockBajo();
-        
+
         if (alertas && alertas.length > 0) {
-          const criticalItems = alertas.filter(item => 
+          const criticalItems = alertas.filter(item =>
             item.stock <= (item.stock_minimo * 0.3)
           );
-          
-          const lowStockItems = alertas.filter(item => 
-            item.stock > (item.stock_minimo * 0.3) && 
+
+          const lowStockItems = alertas.filter(item =>
+            item.stock > (item.stock_minimo * 0.3) &&
             item.stock < item.stock_minimo
           );
-          
+
           if (criticalItems.length > 0) {
             showToast(
               `${criticalItems.length} insumo${criticalItems.length > 1 ? 's' : ''} en stock crítico`,
@@ -77,7 +77,7 @@ export function Inventary() {
               criticalItems.slice(0, 3)
             );
           }
-          
+
           if (lowStockItems.length > 0) {
             setTimeout(() => {
               showToast(
@@ -110,7 +110,7 @@ export function Inventary() {
   const resetFilters = () => {
     setFilters({
       category: "all",
-      client: "all", 
+      client: "all",
       variety: "all",
       presentation: "all",
       type: "all"
@@ -129,7 +129,7 @@ export function Inventary() {
 
   const handleMovement = async () => {
     const quantity = parseInt(movementQuantity);
-    
+
     if (!quantity || quantity <= 0) {
       showToast('Por favor ingrese una cantidad válida', 'error');
       return;
@@ -257,7 +257,7 @@ export function Inventary() {
         <FilterRow>
           <FilterGroup>
             <FilterIcon><IoFilterOutline /></FilterIcon>
-            
+
             <Select value={filters.category} onChange={(e) => handleFilterChange('category', e.target.value)}>
               <option value="all">Todas las categorías</option>
               {categorias.map(cat => (
@@ -299,92 +299,100 @@ export function Inventary() {
 
       {/* Table */}
       <TableContainer>
-            <StyledTable>
-              <thead>
-                <TableHeader>
-                  <th>Insumo</th>
-                  <th>Cliente</th>
-                  <th>Variedad</th>
-                  <th>Presentación</th>
-                  <th>Tipo</th>
-                  <th>Stock</th>
-                  <th>Stock Mín.</th>
-                  <th>Última Act.</th>
-                  <th>Acciones</th>
-                </TableHeader>
-              </thead>
-              <tbody>
-                {filteredInventory.length === 0 ? (
-                  <tr>
-                    <NoResults colSpan="9">
-                      No se encontraron resultados con los filtros aplicados
-                    </NoResults>
-                  </tr>
-                ) : (
-                  filteredInventory.map((item) => {
-                    const stockStatus = getStockStatus(item);
-                    
-                    return (
-                      <TableRow 
-                        key={item.id}
-                        $selected={selectedItem === item.id}
-                        onClick={() => setSelectedItem(item.id)}
-                      >
-                        <td>
-                          <CategoryBadge $category={item.CATEGORIA_INSUMO?.nombre}>
-                            {item.CATEGORIA_INSUMO?.nombre || 'Sin categoría'}
-                          </CategoryBadge>
-                        </td>
-                        <td>{item.CLIENTE?.nombre || '-'}</td>
-                        <td>{item.VARIEDADES_AGAVE?.nombre || '-'}</td>
-                        <td>
-                          <PresentationBadge>
-                            {item.PRESENTACION?.volumen || '-'}
-                          </PresentationBadge>
-                        </td>
-                        <td>
-                          <TypeBadge $type={item.tipo}>
-                            {item.tipo}
-                          </TypeBadge>
-                        </td>
-                        <td>
-                          <StockValue 
-                            $critical={stockStatus === 'critical'}
-                            $low={stockStatus === 'low'}
-                          >
-                            {item.stock} {item.unidad}
-                          </StockValue>
-                        </td>
-                        <td>{item.stock_minimo} {item.unidad}</td>
-                        <td>{item.ultima_actualizacion ? new Date(item.ultima_actualizacion).toLocaleDateString() : '-'}</td>
-                        <td>
-                          <ActionsContainer onClick={(e) => e.stopPropagation()}>
-                            <ActionBtn 
-                              $type="entrada"
-                              onClick={() => openMovementModal(item, 'entrada')}
-                              title="Registrar entrada"
-                            >
-                              <IoAddOutline />
-                            </ActionBtn>
-                            <ActionBtn 
-                              $type="salida"
-                              onClick={() => openMovementModal(item, 'salida')}
-                              title="Registrar salida"
-                            >
-                              <IoRemoveOutline />
-                            </ActionBtn>
-                          </ActionsContainer>
-                        </td>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </tbody>
-            </StyledTable>
-          </TableContainer>
+        <StyledTable>
+          <thead>
+            <TableHeader>
+              <th>Insumo</th>
+              <th>Cliente</th>
+              <th>Variedad</th>
+              <th>Presentación</th>
+              <th>Destino</th>
+              <th>Stock</th>
+              <th>Stock Mín.</th>
+              <th>Última Act.</th>
+              <th>Acciones</th>
+            </TableHeader>
+          </thead>
+          <tbody>
+            {filteredInventory.length === 0 ? (
+              <tr>
+                <NoResults colSpan="9">
+                  No se encontraron resultados con los filtros aplicados
+                </NoResults>
+              </tr>
+            ) : (
+              filteredInventory.map((item) => {
+                const stockStatus = getStockStatus(item);
 
-        {/* Movement Modal */}
-        {showMovementModal && currentItem && (
+                return (
+                  <TableRow
+                    key={item.id}
+                    $selected={selectedItem === item.id}
+                    onClick={() => setSelectedItem(item.id)}
+                  >
+                    <td>
+                      <CategoryBadge $category={item.CATEGORIA_INSUMO?.nombre}>
+                        {item.CATEGORIA_INSUMO?.nombre || 'Sin categoría'}
+                      </CategoryBadge>
+                    </td>
+                    <td>{item.CLIENTE?.nombre || '-'}</td>
+                    <td>{item.VARIEDADES_AGAVE?.nombre || '-'}</td>
+                    <td>
+                      <PresentationBadge>
+                        {item.PRESENTACION?.volumen || '-'}
+                      </PresentationBadge>
+                    </td>
+                    <td>
+                      <TypeBadge $type={item.tipo}>
+                        {item.tipo}
+                      </TypeBadge>
+                    </td>
+                    <td>
+                      <StockValue
+                        $critical={stockStatus === 'critical'}
+                        $low={stockStatus === 'low'}
+                      >
+                        {item.stock} {item.unidad}
+                      </StockValue>
+                    </td>
+                    <td>{item.stock_minimo} {item.unidad}</td>
+                    <td>
+                      {item.ultima_actualizacion
+                        ? new Date(item.ultima_actualizacion).toLocaleDateString('es-MX', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })
+                        : '-'}
+                    </td>
+                    <td>
+                      <ActionsContainer onClick={(e) => e.stopPropagation()}>
+                        <ActionBtn
+                          $type="entrada"
+                          onClick={() => openMovementModal(item, 'entrada')}
+                          title="Registrar entrada"
+                        >
+                          <IoAddOutline />
+                        </ActionBtn>
+                        <ActionBtn
+                          $type="salida"
+                          onClick={() => openMovementModal(item, 'salida')}
+                          title="Registrar salida"
+                        >
+                          <IoRemoveOutline />
+                        </ActionBtn>
+                      </ActionsContainer>
+                    </td>
+                  </TableRow>
+                );
+              })
+            )}
+          </tbody>
+        </StyledTable>
+      </TableContainer>
+
+      {/* Movement Modal */}
+      {showMovementModal && currentItem && (
         <MovementModal onClick={() => setShowMovementModal(false)}>
           <MovementModalContent onClick={(e) => e.stopPropagation()}>
             <MovementModalHeader>
@@ -402,7 +410,7 @@ export function Inventary() {
                 <InfoLabel>Insumo:</InfoLabel>
                 <InfoValue>{currentItem.CATEGORIA_INSUMO?.nombre} - {currentItem.codigo_lote}</InfoValue>
               </ItemInfo>
-              
+
               <ItemInfo>
                 <InfoLabel>Stock actual:</InfoLabel>
                 <InfoValue>{currentItem.stock} {currentItem.unidad}</InfoValue>
@@ -446,7 +454,7 @@ export function Inventary() {
               <CancelButton onClick={() => setShowMovementModal(false)}>
                 Cancelar
               </CancelButton>
-              <ConfirmButton 
+              <ConfirmButton
                 $type={movementType}
                 onClick={handleMovement}
               >
@@ -503,7 +511,7 @@ const HeaderLeft = styled.div`
 `;
 
 const Title = styled.h1`
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: ${props => props.theme.textprimary};
   margin: 0;
@@ -672,7 +680,7 @@ const CategoryBadge = styled.span`
   background: ${props => {
     const colors = {
       'Botellas': '#dbeafe',
-      'Tapones': '#d1fae5', 
+      'Tapones': '#d1fae5',
       'Cintillos': '#fef3c7',
       'Sellos Térmicos': '#ede9fe',
       'Etiquetas': '#fce7f3',
@@ -684,7 +692,7 @@ const CategoryBadge = styled.span`
     const colors = {
       'Botellas': '#1e40af',
       'Tapones': '#047857',
-      'Cintillos': '#d97706', 
+      'Cintillos': '#d97706',
       'Sellos Térmicos': '#7c3aed',
       'Etiquetas': '#be185d',
       'Cajas': '#0284c7'
@@ -714,10 +722,10 @@ const TypeBadge = styled.span`
 
 const StockValue = styled.div`
   font-weight: ${props => (props.$low || props.$critical) ? 'bold' : 'normal'};
-  color: ${props => 
-    props.$critical ? '#dc2626' : 
-    props.$low ? '#d97706' : 
-    'inherit'};
+  color: ${props =>
+    props.$critical ? '#dc2626' :
+      props.$low ? '#d97706' :
+        'inherit'};
 `;
 
 const NoResults = styled.td`
@@ -778,16 +786,16 @@ const Toast = styled.div`
   padding: 1rem;
   background: ${props => props.theme.bgtgderecha};
   border-radius: 12px;
-  border-left: 4px solid ${props => 
+  border-left: 4px solid ${props =>
     props.$type === 'critical' ? '#dc2626' :
-    props.$type === 'warning' ? '#d97706' :
-    props.$type === 'success' ? '#10b981' :
-    '#3b82f6'
+      props.$type === 'warning' ? '#d97706' :
+        props.$type === 'success' ? '#10b981' :
+          '#3b82f6'
   };
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideIn 0.3s ease;
+  animation: slideInRight 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   
-  @keyframes slideIn {
+  @keyframes slideInRight {
     from {
       transform: translateX(100%);
       opacity: 0;
@@ -800,11 +808,11 @@ const Toast = styled.div`
 `;
 
 const ToastIcon = styled.div`
-  color: ${props => 
+  color: ${props =>
     props.$type === 'critical' ? '#dc2626' :
-    props.$type === 'warning' ? '#d97706' :
-    props.$type === 'success' ? '#10b981' :
-    '#3b82f6'
+      props.$type === 'warning' ? '#d97706' :
+        props.$type === 'success' ? '#10b981' :
+          '#3b82f6'
   };
 `;
 

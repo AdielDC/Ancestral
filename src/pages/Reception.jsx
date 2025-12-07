@@ -1418,7 +1418,7 @@ const PageHeader = styled.header`
 const HeaderContent = styled.div``;
 
 const Title = styled.h1`
-  font-size: 2.5rem;
+  font-size: 1.5rem;
   font-weight: bold;
   color: ${props => props.theme.textprimary};
   margin: 0 0 0.5rem 0;

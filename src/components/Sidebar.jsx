@@ -8,7 +8,7 @@ import {
   AiOutlineSetting,
   AiTwotoneReconciliation
 } from "react-icons/ai";
-import { MdOutlineAnalytics, MdLogout, MdAppRegistration } from "react-icons/md";
+import { MdOutlineAnalytics, MdLogout, MdAppRegistration, MdOutlineInventory } from "react-icons/md";
 import { NavLink } from "react-router-dom";
 import { useContext } from "react";
 import { ThemeContext } from "../App";
@@ -89,7 +89,7 @@ const linksArray = [
   },
   {
     label: "Inventario",
-    icon: <MdOutlineAnalytics />,
+    icon: <MdOutlineInventory />,
     to: "/inventary",
   },
   {
@@ -128,20 +128,20 @@ const Container = styled.div`
   color: ${(props) => props.theme.text};
   background: ${(props) => props.theme.bg};
   position: sticky;
-  padding-top: 20px;
+  padding-top: 15px; /* Reduced from 20px */
   height: 100vh;
   z-index: 1000;
   
   .Sidebarbutton {
     position: absolute;
-    top: ${v.xxlSpacing};
-    right: -18px;
-    width: 32px;
-    height: 32px;
+    top: ${v.lgSpacing}; /* Slightly smaller spacing */
+    right: -16px; /* Reduced from -18px */
+    width: 28px; /* Reduced from 32px */
+    height: 28px; /* Reduced from 32px */
     border-radius: 50%;
     background: ${(props) => props.theme.bgtgderecha};
-    box-shadow: 0 0 4px ${(props) => props.theme.bg3},
-      0 0 7px ${(props) => props.theme.bg};
+    box-shadow: 0 0 3px ${(props) => props.theme.bg3},
+      0 0 6px ${(props) => props.theme.bg};
     display: flex;
     align-items: center;
     justify-content: center;
@@ -163,12 +163,12 @@ const Container = styled.div`
     display: flex;
     justify-content: center;
     align-items: center;
-    padding-bottom: ${v.lgSpacing};
+    padding-bottom: ${v.mdSpacing}; /* Reduced from lgSpacing */
     
     .imgcontent {
       display: flex;
       img {
-        max-width: 100%;
+        max-width: 70%; /* Reduced from 80% */
         height: auto;
       }
       cursor: pointer;
@@ -178,12 +178,13 @@ const Container = styled.div`
     
     h2 {
       display: ${({ isOpen }) => (isOpen ? `block` : `none`)};
+      font-size: 1.2rem; /* Added slight reduction if needed */
     }
   }
   
   .LinkContainer {
-    margin: 8px 0;
-    padding: 0 15%;
+    margin: 6px 0; /* Reduced from 8px */
+    padding: 0 10%; /* Reduced from 15% */
     
     :hover {
       background: ${(props) => props.theme.bg3};
@@ -195,14 +196,14 @@ const Container = styled.div`
       text-decoration: none;
       padding: calc(${v.smSpacing} - 2px) 0;
       color: ${(props) => props.theme.text};
-      height: 50px;
+      height: 45px; /* Reduced from 50px */
       
       .Linkicon {
-        padding: ${v.smSpacing} ${v.mdSpacing};
+        padding: ${v.smSpacing} ${v.smSpacing}; /* Reduced mdSpacing to sm */
         display: flex;
 
         svg {
-          font-size: 25px;
+          font-size: 20px; /* Reduced from 25px */
         }
       }
       
@@ -223,8 +224,9 @@ const Container = styled.div`
     
     .titletheme {
       display: block;
-      padding: 10px;
+      padding: 8px; /* Reduced from 10px */
       font-weight: 700;
+      font-size: 0.9rem; /* Slight reduction */
       opacity: ${({ isOpen }) => (isOpen ? `1` : `0`)};
       transition: all 0.3s;
       white-space: nowrap;
@@ -232,10 +234,10 @@ const Container = styled.div`
     }
     
     .Togglecontent {
-      margin: ${({ isOpen }) => (isOpen ? `auto 40px` : `auto 15px`)};
-      width: 36px;
-      height: 20px;
-      border-radius: 10px;
+      margin: ${({ isOpen }) => (isOpen ? `auto 30px` : `auto 12px`)}; /* Reduced from 40px/15px */
+      width: 32px; /* Reduced from 36px */
+      height: 18px; /* Reduced from 20px */
+      border-radius: 9px; /* Adjusted proportionally */
       transition: all 0.3s;
       position: relative;
       
@@ -253,13 +255,13 @@ const Container = styled.div`
         }
         
         .demo {
-          font-size: 32px;
+          font-size: 28px; /* Reduced from 32px */
           
           .switch {
             position: relative;
             display: inline-block;
-            width: 60px;
-            height: 34px;
+            width: 54px; /* Reduced from 60px */
+            height: 30px; /* Reduced from 34px */
             
             .theme-swither {
               opacity: 0;
@@ -269,7 +271,7 @@ const Container = styled.div`
               &:checked + .slider:before {
                 left: 4px;
                 content: "🌑";
-                transform: translateX(26px);
+                transform: translateX(24px); /* Adjusted from 26px */
               }
             }
             
@@ -290,13 +292,13 @@ const Container = styled.div`
                 height: 0px;
                 width: 0px;
                 left: -10px;
-                top: 16px;
+                top: 14px; /* Adjusted from 16px */
                 line-height: 0px;
                 transition: 0.4s;
               }
               
               &.round {
-                border-radius: 34px;
+                border-radius: 30px; /* Adjusted from 34px */
                 
                 &::before {
                   border-radius: 50%;
@@ -314,6 +316,6 @@ const Divider = styled.div`
   height: 1px;
   width: 100%;
   background: ${(props) => props.theme.bg3};
-  margin: ${v.lgSpacing} 0;
+  margin: ${v.mdSpacing} 0; /* Reduced from lgSpacing */
 `;
 //#endregion

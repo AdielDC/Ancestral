@@ -1,7 +1,3 @@
-// Home.jsx - Dashboard Principal conectado a la API
-// Ubicación: src/pages/Home.jsx
-// NOTA: Requiere instalar recharts: npm install recharts
-
 import { useState, useContext, useEffect } from "react";
 import styled from "styled-components";
 import { ThemeContext } from "../App";
@@ -638,7 +634,7 @@ const Header = styled.header`
 const HeaderContent = styled.div``;
 
 const Title = styled.h1`
-  font-size: 1.75rem;
+  font-size: 1.50rem;
   font-weight: 700;
   color: ${props => props.theme.textprimary};
   margin: 0 0 0.25rem 0;
