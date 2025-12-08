@@ -179,6 +179,18 @@ export function Inventary() {
     return 'normal';
   };
 
+  // Función para formatear la fecha corrigiendo el offset de zona horaria
+  const formatLocalDate = (dateString) => {
+    if (!dateString) return '-';
+    const [year, month, day] = dateString.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day);
+    return localDate.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
   if (loading) {
     return (
       <Container>
@@ -357,13 +369,7 @@ export function Inventary() {
                     </td>
                     <td>{item.stock_minimo} {item.unidad}</td>
                     <td>
-                      {item.ultima_actualizacion
-                        ? new Date(item.ultima_actualizacion).toLocaleDateString('es-MX', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric'
-                        })
-                        : '-'}
+                      {formatLocalDate(item.ultima_actualizacion)}
                     </td>
                     <td>
                       <ActionsContainer onClick={(e) => e.stopPropagation()}>

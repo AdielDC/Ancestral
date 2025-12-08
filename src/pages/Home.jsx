@@ -341,7 +341,7 @@ export function Home() {
             <ChartBadge>Últimos 6 meses</ChartBadge>
           </ChartHeader>
           <ChartBody>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={224}>
               <BarChart data={movimientosMensuales} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                 <XAxis 
@@ -386,7 +386,7 @@ export function Home() {
           </ChartHeader>
           <DonutWrapper>
             <DonutChartContainer>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={144}>
                 <PieChart>
                   <Pie
                     data={distribucionCategorias}
@@ -436,7 +436,7 @@ export function Home() {
             </LegendInline>
           </ChartHeader>
           <ChartBody $small>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer width="100%" height={128}>
               <AreaChart data={movimientosArea} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRecepciones" x1="0" y1="0" x2="0" y2="1">
@@ -515,60 +515,6 @@ export function Home() {
           </AlertsBody>
         </ChartCard>
       </MainGrid>
-
-      {/* Resumen de Estado del Inventario */}
-      <StockSummary>
-        <SummaryTitle>Estado General del Inventario</SummaryTitle>
-        <SummaryCards>
-          <SummaryCard $type="success">
-            <SummaryIcon $type="success">
-              <IoCheckmarkCircle size={24} />
-            </SummaryIcon>
-            <SummaryInfo>
-              <SummaryValue>{dashboardData.stockAdecuado}</SummaryValue>
-              <SummaryLabel>Stock Adecuado</SummaryLabel>
-            </SummaryInfo>
-            <SummaryBar>
-              <SummaryProgress 
-                $type="success" 
-                $width={dashboardData.totalInsumos > 0 ? (dashboardData.stockAdecuado / dashboardData.totalInsumos) * 100 : 0} 
-              />
-            </SummaryBar>
-          </SummaryCard>
-
-          <SummaryCard $type="warning">
-            <SummaryIcon $type="warning">
-              <IoWarningOutline size={24} />
-            </SummaryIcon>
-            <SummaryInfo>
-              <SummaryValue>{dashboardData.stockBajo}</SummaryValue>
-              <SummaryLabel>Stock Bajo</SummaryLabel>
-            </SummaryInfo>
-            <SummaryBar>
-              <SummaryProgress 
-                $type="warning" 
-                $width={dashboardData.totalInsumos > 0 ? (dashboardData.stockBajo / dashboardData.totalInsumos) * 100 : 0} 
-              />
-            </SummaryBar>
-          </SummaryCard>
-
-          <SummaryCard $type="danger">
-            <SummaryIcon $type="danger">
-              <IoAlertCircle size={24} />
-            </SummaryIcon>
-            <SummaryInfo>
-              <SummaryValue>{dashboardData.stockCritico}</SummaryValue>
-              <SummaryLabel>Stock Crítico</SummaryLabel>
-            </SummaryInfo>
-            <SummaryBar>
-              <SummaryProgress 
-                $type="danger" 
-                $width={dashboardData.totalInsumos > 0 ? (dashboardData.stockCritico / dashboardData.totalInsumos) * 100 : 0} 
-              />
-            </SummaryBar>
-          </SummaryCard>
-        </SummaryCards>
-      </StockSummary>
     </Container>
   );
 }
@@ -689,7 +635,7 @@ const KPIsRow = styled.div`
 const KPICard = styled.div`
   background: ${props => props.theme.bgtgderecha};
   border-radius: 12px;
-  padding: 1.25rem;
+  padding: 1rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   transition: transform 0.2s, box-shadow 0.2s;
 
@@ -724,7 +670,7 @@ const KPIIconBadge = styled.div`
 `;
 
 const KPINumber = styled.div`
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: ${props => props.$alert ? COLORS.warning : props.theme.textprimary};
   line-height: 1;
@@ -964,105 +910,6 @@ const EmptyText = styled.div`
 const EmptySubtext = styled.div`
   font-size: 0.8rem;
   color: ${props => props.theme.texttertiary};
-`;
-
-// Stock Summary
-const StockSummary = styled.div`
-  background: ${props => props.theme.bgtgderecha};
-  border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-`;
-
-const SummaryTitle = styled.h3`
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: ${props => props.theme.textprimary};
-  margin: 0 0 1rem 0;
-`;
-
-const SummaryCards = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const SummaryCard = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: ${props => props.theme.bg2};
-  border-radius: 10px;
-`;
-
-const SummaryIcon = styled.div`
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${props => {
-    switch(props.$type) {
-      case 'success': return '#d1fae5';
-      case 'warning': return '#fef3c7';
-      case 'danger': return '#fee2e2';
-      default: return '#e5e7eb';
-    }
-  }};
-  color: ${props => {
-    switch(props.$type) {
-      case 'success': return COLORS.success;
-      case 'warning': return COLORS.warning;
-      case 'danger': return COLORS.danger;
-      default: return '#6b7280';
-    }
-  }};
-`;
-
-const SummaryInfo = styled.div`
-  flex: 1;
-`;
-
-const SummaryValue = styled.div`
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: ${props => props.theme.textprimary};
-  line-height: 1;
-`;
-
-const SummaryLabel = styled.div`
-  font-size: 0.75rem;
-  color: ${props => props.theme.texttertiary};
-  margin-top: 0.25rem;
-`;
-
-const SummaryBar = styled.div`
-  width: 60px;
-  height: 6px;
-  background: ${props => props.theme.bg3};
-  border-radius: 3px;
-  overflow: hidden;
-`;
-
-const SummaryProgress = styled.div`
-  height: 100%;
-  width: ${props => Math.min(props.$width, 100)}%;
-  border-radius: 3px;
-  background: ${props => {
-    switch(props.$type) {
-      case 'success': return COLORS.success;
-      case 'warning': return COLORS.warning;
-      case 'danger': return COLORS.danger;
-      default: return '#6b7280';
-    }
-  }};
-  transition: width 0.5s ease;
 `;
 
 // Tooltip
