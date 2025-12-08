@@ -42,7 +42,7 @@ export function ClienteConfig() {
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 5000);
+    }, 4250);
   };
 
   // Cargar datos al montar
@@ -61,7 +61,7 @@ export function ClienteConfig() {
         presentacionService.getAll()
       ]);
 
-      setClientes(clientesRes.data || clientesRes || []);
+      setClientes((clientesRes.data || clientesRes || []).filter(c => c.activo));
       setVariedades(variedadesRes.data || variedadesRes || []);
       setPresentaciones(presentacionesRes.data || presentacionesRes || []);
 
@@ -225,7 +225,7 @@ export function ClienteConfig() {
         </HeaderContent>
         <HeaderActions>
           <ActionButton onClick={loadAllData}>
-            <IoRefreshOutline size={20} />
+            <IoRefreshOutline size={17} />
             Actualizar
           </ActionButton>
         </HeaderActions>
@@ -235,7 +235,7 @@ export function ClienteConfig() {
         {/* Lista de Clientes */}
         <ClientesList>
           <SectionHeader>
-            <IoBusinessOutline size={20} />
+            <IoBusinessOutline size={17} />
             <span>Clientes ({clientes.length})</span>
           </SectionHeader>
           
@@ -283,7 +283,7 @@ export function ClienteConfig() {
         <ConfigPanel>
           {!selectedCliente ? (
             <EmptySelection>
-              <IoBusinessOutline size={48} />
+              <IoBusinessOutline size={40.8} />
               <p>Selecciona un cliente para configurar sus opciones</p>
             </EmptySelection>
           ) : (
@@ -304,7 +304,7 @@ export function ClienteConfig() {
               {/* Variedades */}
               <ConfigSection>
                 <SectionHeader>
-                  <IoLeafOutline size={20} />
+                  <IoLeafOutline size={17} />
                   <span>Variedades de Agave</span>
                   <Counter>{editConfig.variedades.length} seleccionadas</Counter>
                 </SectionHeader>
@@ -327,7 +327,7 @@ export function ClienteConfig() {
               {/* Presentaciones */}
               <ConfigSection>
                 <SectionHeader>
-                  <IoWineOutline size={20} />
+                  <IoWineOutline size={17} />
                   <span>Presentaciones</span>
                   <Counter>{editConfig.presentaciones.length} seleccionadas</Counter>
                 </SectionHeader>
@@ -350,7 +350,7 @@ export function ClienteConfig() {
               {/* Tipos */}
               <ConfigSection>
                 <SectionHeader>
-                  <IoGlobeOutline size={20} />
+                  <IoGlobeOutline size={17} />
                   <span>Tipos de Producto</span>
                   <Counter>{editConfig.tipos.length} seleccionados</Counter>
                 </SectionHeader>
@@ -404,50 +404,50 @@ export function ClienteConfig() {
 const Container = styled.div`
   min-height: 100vh;
   background: ${props => props.theme.bg};
-  padding: 1.5rem;
+  padding: 1.275rem;
 `;
 
 const PageHeader = styled.header`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 2rem;
+  margin-bottom: 1.7rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.85rem;
 `;
 
 const HeaderContent = styled.div``;
 
 const Title = styled.h1`
-  font-size: 2rem;
+  font-size: 1.7rem;
   font-weight: bold;
   color: ${props => props.theme.textprimary};
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.425rem 0;
 `;
 
 const Subtitle = styled.p`
   color: ${props => props.theme.texttertiary};
-  font-size: 1rem;
+  font-size: 0.85rem;
   margin: 0;
 `;
 
 const HeaderActions = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 0.85rem;
 `;
 
 const ActionButton = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: 1px solid ${props => props.theme.bg3};
-  border-radius: 8px;
+  gap: 0.425rem;
+  padding: 0.637rem 1.275rem;
+  border: 0.85px solid ${props => props.theme.bg3};
+  border-radius: 6.8px;
   background: ${props => props.theme.bgtgderecha};
   color: ${props => props.theme.textprimary};
   cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s;
+  font-size: 0.744rem;
+  transition: all 0.17s;
 
   &:hover {
     background: ${props => props.theme.bg2};
@@ -456,40 +456,40 @@ const ActionButton = styled.button`
 
 const MainContent = styled.div`
   display: grid;
-  grid-template-columns: 350px 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 297.5px 1fr;
+  gap: 1.275rem;
   
-  @media (max-width: 900px) {
+  @media (max-width: 765px) {
     grid-template-columns: 1fr;
   }
 `;
 
 const ClientesList = styled.div`
   background: ${props => props.theme.bgtgderecha};
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 10.2px;
+  padding: 0.85rem;
   height: fit-content;
 `;
 
 const SectionHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
+  gap: 0.425rem;
+  padding: 0.637rem;
   color: ${props => props.theme.textprimary};
   font-weight: 600;
-  border-bottom: 1px solid ${props => props.theme.bg3};
-  margin-bottom: 0.5rem;
+  border-bottom: 0.85px solid ${props => props.theme.bg3};
+  margin-bottom: 0.425rem;
 `;
 
 const ClienteItem = styled.div`
-  padding: 1rem;
-  border-radius: 8px;
+  padding: 0.85rem;
+  border-radius: 6.8px;
   cursor: pointer;
-  border: 2px solid ${props => props.$selected ? '#3b82f6' : 'transparent'};
+  border: 1.7px solid ${props => props.$selected ? '#3b82f6' : 'transparent'};
   background: ${props => props.$selected ? props.theme.bg2 : 'transparent'};
-  margin-bottom: 0.5rem;
-  transition: all 0.2s;
+  margin-bottom: 0.425rem;
+  transition: all 0.17s;
 
   &:hover {
     background: ${props => props.theme.bg2};
@@ -500,7 +500,7 @@ const ClienteInfo = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.425rem;
 `;
 
 const ClienteName = styled.div`
@@ -511,29 +511,29 @@ const ClienteName = styled.div`
 const ClienteStatus = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
+  gap: 0.212rem;
+  font-size: 0.637rem;
   color: ${props => props.$hasConfig ? '#10b981' : '#d97706'};
 `;
 
 const ClientePreview = styled.div`
   display: flex;
-  gap: 0.5rem;
+  gap: 0.425rem;
   flex-wrap: wrap;
 `;
 
 const PreviewItem = styled.span`
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 0.595rem;
+  padding: 0.17rem 0.425rem;
   background: ${props => props.theme.bg3};
   color: ${props => props.theme.texttertiary};
-  border-radius: 4px;
+  border-radius: 3.4px;
 `;
 
 const ConfigPanel = styled.div`
   background: ${props => props.theme.bgtgderecha};
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 10.2px;
+  padding: 1.275rem;
 `;
 
 const EmptySelection = styled.div`
@@ -541,22 +541,22 @@ const EmptySelection = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300px;
+  height: 255px;
   color: ${props => props.theme.texttertiary};
-  gap: 1rem;
+  gap: 0.85rem;
 `;
 
 const PanelHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid ${props => props.theme.bg3};
+  margin-bottom: 1.275rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 0.85px solid ${props => props.theme.bg3};
 `;
 
 const PanelTitle = styled.h2`
-  font-size: 1.25rem;
+  font-size: 1.062rem;
   color: ${props => props.theme.textprimary};
   margin: 0;
   
@@ -568,15 +568,15 @@ const PanelTitle = styled.h2`
 const SaveButton = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  gap: 0.425rem;
+  padding: 0.637rem 1.275rem;
   background: #3b82f6;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 6.8px;
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.2s;
+  transition: all 0.17s;
 
   &:hover:not(:disabled) {
     background: #2563eb;
@@ -589,12 +589,12 @@ const SaveButton = styled.button`
 `;
 
 const ConfigSection = styled.div`
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.275rem;
 `;
 
 const Counter = styled.span`
   margin-left: auto;
-  font-size: 0.75rem;
+  font-size: 0.637rem;
   color: ${props => props.theme.texttertiary};
   font-weight: normal;
 `;
@@ -602,23 +602,23 @@ const Counter = styled.span`
 const OptionsGrid = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
+  gap: 0.425rem;
+  padding: 0.425rem 0;
 `;
 
 const OptionChip = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: ${props => props.$large ? '0.75rem 1.5rem' : '0.5rem 1rem'};
-  border-radius: 20px;
-  border: 2px solid ${props => props.$selected ? '#3b82f6' : props.theme.bg3};
+  gap: 0.297rem;
+  padding: ${props => props.$large ? '0.637rem 1.275rem' : '0.425rem 0.85rem'};
+  border-radius: 17px;
+  border: 1.7px solid ${props => props.$selected ? '#3b82f6' : props.theme.bg3};
   background: ${props => props.$selected ? '#dbeafe' : 'transparent'};
   color: ${props => props.$selected ? '#1e40af' : props.theme.textprimary};
   cursor: pointer;
-  font-size: ${props => props.$large ? '0.95rem' : '0.85rem'};
+  font-size: ${props => props.$large ? '0.807rem' : '0.722rem'};
   font-weight: ${props => props.$selected ? '600' : '400'};
-  transition: all 0.2s;
+  transition: all 0.17s;
 
   &:hover {
     border-color: #3b82f6;
@@ -631,36 +631,36 @@ const OptionChip = styled.button`
 `;
 
 const WarningNote = styled.div`
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  margin-top: 0.425rem;
+  padding: 0.425rem 0.637rem;
   background: #fef3c7;
   color: #92400e;
-  border-radius: 6px;
-  font-size: 0.8rem;
+  border-radius: 5.1px;
+  font-size: 0.68rem;
 `;
 
 const SummarySection = styled.div`
   background: ${props => props.theme.bg2};
-  border-radius: 8px;
-  padding: 1rem;
-  margin-top: 1.5rem;
+  border-radius: 6.8px;
+  padding: 0.85rem;
+  margin-top: 1.275rem;
 `;
 
 const SummaryTitle = styled.h3`
-  font-size: 0.9rem;
+  font-size: 0.765rem;
   font-weight: 600;
   color: ${props => props.theme.textprimary};
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.637rem 0;
 `;
 
 const SummaryContent = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.425rem;
 `;
 
 const SummaryItem = styled.div`
-  font-size: 0.85rem;
+  font-size: 0.722rem;
   color: ${props => props.theme.texttertiary};
   
   strong {
@@ -673,17 +673,17 @@ const LoadingContainer = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 50vh;
-  gap: 1rem;
+  height: 42.5vh;
+  gap: 0.85rem;
 `;
 
 const LoadingSpinner = styled.div`
-  width: 48px;
-  height: 48px;
-  border: 4px solid ${props => props.theme.bg3};
+  width: 40.8px;
+  height: 40.8px;
+  border: 3.4px solid ${props => props.theme.bg3};
   border-top-color: #3b82f6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  border-radius: 42.5%;
+  animation: spin 0.68s linear infinite;
   
   @keyframes spin {
     to { transform: rotate(360deg); }
@@ -696,23 +696,23 @@ const LoadingText = styled.div`
 
 const ToastContainer = styled.div`
   position: fixed;
-  top: 1rem;
-  right: 1rem;
+  top: 0.85rem;
+  right: 0.85rem;
   z-index: 10000;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.425rem;
 `;
 
 const Toast = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: 0.637rem;
+  padding: 0.85rem;
   background: ${props => props.theme.bgtgderecha};
-  border-radius: 8px;
-  border-left: 4px solid ${props => props.$type === 'success' ? '#10b981' : '#dc2626'};
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 6.8px;
+  border-left: 3.4px solid ${props => props.$type === 'success' ? '#10b981' : '#dc2626'};
+  box-shadow: 0 3.4px 10.2px rgba(0, 0, 0, 0.15);
   color: ${props => props.theme.textprimary};
   
   svg {

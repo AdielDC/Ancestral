@@ -4,6 +4,9 @@ import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import { IoMailOutline, IoLockClosedOutline, IoPersonOutline } from "react-icons/io5";
 import authService from "../services/authService";
+import fondo from "../assets/001.jpg";
+import botella from "../assets/favicon.png";
+import agave from "../assets/agave.svg";
 
 export function Register() {
   const navigate = useNavigate();
@@ -72,12 +75,12 @@ export function Register() {
         {/* Left Side - Hero Section */}
         <LeftSection>
           <HeroTitle>
-            La mejor solución <br />
-            <HeroSubtitle>para tu negocio de mezcal</HeroSubtitle>
+            ENVASADORA ANCESTRAL <br />
+            <HeroSubtitle>SISTEMA INTEGRAL</HeroSubtitle>
           </HeroTitle>
 
           <HeroDescription>
-            Sistema integral de gestión de inventarios para envasadoras de mezcal. 
+            Gestión de inventarios para envasadoras de mezcal. 
             Controla tus insumos, recepciones y entregas de manera eficiente 
             y profesional con nuestra plataforma especializada.
           </HeroDescription>
@@ -170,22 +173,6 @@ export function Register() {
                   <PasswordHint>Mínimo 6 caracteres</PasswordHint>
                 </FormGroup>
 
-                {/* Newsletter Checkbox */}
-                <CheckboxContainer>
-                  <CheckboxWrapper>
-                    <Checkbox
-                      type="checkbox"
-                      name="newsletter"
-                      id="newsletter"
-                      checked={formData.newsletter}
-                      onChange={handleInputChange}
-                      disabled={loading}
-                    />
-                    <CheckboxLabel htmlFor="newsletter">
-                      Suscribirme a notificaciones del sistema
-                    </CheckboxLabel>
-                  </CheckboxWrapper>
-                </CheckboxContainer>
 
                 {/* Submit Button */}
                 <SubmitButton type="submit" disabled={loading}>
@@ -217,21 +204,11 @@ const Container = styled.div`
   overflow: hidden;
   position: relative;
   
-  /* Background Radial Gradient */
-  background-color: hsl(218, 41%, 15%);
-  background-image: 
-    radial-gradient(650px circle at 0% 0%,
-      hsl(218, 41%, 35%) 15%,
-      hsl(218, 41%, 30%) 35%,
-      hsl(218, 41%, 20%) 75%,
-      hsl(218, 41%, 19%) 80%,
-      transparent 100%),
-    radial-gradient(1250px circle at 100% 100%,
-      hsl(218, 41%, 45%) 15%,
-      hsl(218, 41%, 30%) 35%,
-      hsl(218, 41%, 20%) 75%,
-      hsl(218, 41%, 19%) 80%,
-      transparent 100%);
+  /* Background Image */
+  background-image: url(${fondo});
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 
   @media (max-width: 768px) {
     padding: 1rem;
@@ -319,7 +296,10 @@ const ShapeOne = styled.div`
   width: 220px;
   top: -60px;
   left: -130px;
-  background: radial-gradient(#92400e, #d97706);
+  background-image: url(${botella});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
   border-radius: 50%;
   overflow: hidden;
   z-index: 0;
@@ -344,12 +324,15 @@ const ShapeOne = styled.div`
 
 const ShapeTwo = styled.div`
   position: absolute;
-  border-radius: 38% 62% 63% 37% / 70% 33% 67% 30%;
   bottom: -60px;
   right: -110px;
   width: 300px;
   height: 300px;
-  background: radial-gradient(#92400e, #d97706);
+  background-image: url(${botella});
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 38% 62% 63% 37% / 70% 33% 67% 30%;
   overflow: hidden;
   z-index: 0;
   animation: morph 8s ease-in-out infinite;
@@ -475,49 +458,6 @@ const PasswordHint = styled.span`
   font-size: 0.75rem;
   color: #6b7280;
   margin-left: 0.5rem;
-`;
-
-const CheckboxContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-`;
-
-const CheckboxWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const Checkbox = styled.input`
-  width: 1.125rem;
-  height: 1.125rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:checked {
-    background-color: #d97706;
-    border-color: #d97706;
-  }
-
-  &:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`;
-
-const CheckboxLabel = styled.label`
-  font-size: 0.875rem;
-  color: #4b5563;
-  cursor: pointer;
-  user-select: none;
 `;
 
 const SubmitButton = styled.button`

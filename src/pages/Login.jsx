@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import authService from "../services/authService";
+import logo from "../assets/favicon.png";
 
 export function Login() {
   const navigate = useNavigate();
@@ -30,11 +31,11 @@ export function Login() {
       
       // Redirigir según el rol del usuario
       if (response.user.rol === 'admin') {
-        navigate('/admin/dashboard');
+        navigate('');
       } else if (response.user.rol === 'operador') {
-        navigate('/operador/dashboard');
+        navigate('/');
       } else {
-        navigate('/dashboard');
+        navigate('/');
       }
 
     } catch (error) {
@@ -58,8 +59,10 @@ export function Login() {
         <LeftSection>
           <FormContainer>
             <LogoSection>
-              <Logo>EA</Logo>
-              <CompanyTitle>Somos Envasadora Ancestral</CompanyTitle>
+              <Logo>
+                <img src={logo} alt="Logo Ancestral" />
+              </Logo>
+              <CompanyTitle>Envasadora Ancestral</CompanyTitle>
             </LogoSection>
 
             <WelcomeText>Por favor inicia sesión en tu cuenta</WelcomeText>
@@ -110,11 +113,9 @@ export function Login() {
 
         <RightSection>
           <ContentSection>
-            <RightTitle>Más que una empresa de envasado</RightTitle>
+            <RightTitle>Tradición y calidad</RightTitle>
             <RightDescription>
-              En Envasadora Ancestral nos especializamos en el envasado artesanal de mezcal, 
-              preservando las tradiciones oaxaqueñas mientras implementamos tecnología moderna 
-              para garantizar la más alta calidad en cada botella que producimos.
+              El Mezcal más que una bebida en Oaxaca, es un legado Ancestral. En Envasadora Ancestral preservamos las tradiciones oaxaqueñas con tecnología moderna para la más alta calidad.
             </RightDescription>
           </ContentSection>
         </RightSection>
@@ -129,7 +130,7 @@ const LoginContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #fef7e6 0%, #f7f3e9 100%);
+  background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
   padding: 1rem;
 
   @media (min-width: 768px) {
@@ -178,20 +179,20 @@ const LogoSection = styled.div`
 const Logo = styled.div`
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #2e2d2cff, #2b1f11ff);
+  background: #000000;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: #d4af37;
   font-size: 2rem;
   font-weight: bold;
   margin: 0 auto 1rem auto;
-  box-shadow: 0 4px 15px rgba(146, 64, 14, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 `;
 
 const CompanyTitle = styled.h4`
-  color: #92400e;
+  color: #000000;
   font-size: 1.2rem;
   font-weight: 600;
   margin: 0;
@@ -233,9 +234,9 @@ const Input = styled.input`
 
   &:focus {
     outline: none;
-    border-color: #d97706;
+    border-color: #d4af37;
     background: white;
-    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
   }
 
   &::placeholder {
@@ -255,8 +256,8 @@ const ButtonSection = styled.div`
 const LoginButton = styled.button`
   width: 100%;
   padding: 0.875rem;
-  background: linear-gradient(135deg, #d97706, #92400e);
-  color: white;
+  background: linear-gradient(135deg, #d4af37, #b8860b);
+  color: #000000;
   border: none;
   border-radius: 8px;
   font-size: 0.95rem;
@@ -266,9 +267,9 @@ const LoginButton = styled.button`
   margin-bottom: 1rem;
 
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #b45309, #78350f);
+    background: linear-gradient(135deg, #b8860b, #a67c00);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
   }
 
   &:active:not(:disabled) {
@@ -292,7 +293,7 @@ const ForgotPasswordLink = styled.button`
   transition: color 0.2s ease;
 
   &:hover:not(:disabled) {
-    color: #d97706;
+    color: #d4af37;
   }
 
   &:disabled {
@@ -324,8 +325,8 @@ const SignUpText = styled.p`
 const SignUpButton = styled.button`
   padding: 0.5rem 1.5rem;
   background: transparent;
-  color: #dc2626;
-  border: 2px solid #dc2626;
+  color: #000000;
+  border: 2px solid #000000;
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 500;
@@ -333,7 +334,7 @@ const SignUpButton = styled.button`
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: #dc2626;
+    background: #000000;
     color: white;
     transform: translateY(-1px);
   }
@@ -347,7 +348,7 @@ const SignUpButton = styled.button`
 
 const RightSection = styled.div`
   flex: 1;
-  background: linear-gradient(135deg, #191512ff, #140303ff, #0f0c0dff, #403b3eff);
+  background: linear-gradient(135deg, #000000 0%, #333333 100%);
   display: flex;
   align-items: center;
   justify-content: center;

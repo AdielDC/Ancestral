@@ -501,7 +501,7 @@ const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 `;
 
 const HeaderLeft = styled.div`
@@ -527,25 +527,25 @@ const Subtitle = styled.p`
 
 const FiltersContainer = styled.div`
   background: ${props => props.theme.bgtgderecha};
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 1.275rem;
+  margin-bottom: 1.275rem;
+  box-shadow: 0 0.85px 2.55px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 `;
 
 const SearchContainer = styled.div`
   position: relative;
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
 `;
 
 const SearchIcon = styled.div`
   position: absolute;
-  left: 1rem;
+  left: 0.85rem;
   top: 50%;
   transform: translateY(-50%);
   color: ${props => props.theme.texttertiary};
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
   display: flex;
   align-items: center;
   transition: color 0.3s ease;
@@ -553,10 +553,10 @@ const SearchIcon = styled.div`
 
 const SearchInput = styled.input`
   width: 100%;
-  padding: 0.75rem 1rem 0.75rem 3rem;
+  padding: 0.6375rem 0.85rem 0.6375rem 2.55rem;
   border: 2px solid ${props => props.theme.bg3};
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 7px;
+  font-size: 0.85rem;
   background: ${props => props.theme.bg};
   color: ${props => props.theme.textprimary};
   transition: all 0.2s;
@@ -573,14 +573,14 @@ const SearchInput = styled.input`
 
 const FilterRow = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 0.85rem;
   align-items: center;
   flex-wrap: wrap;
 `;
 
 const FilterGroup = styled.div`
   display: flex;
-  gap: 0.75rem;
+  gap: 0.6375rem;
   align-items: center;
   flex: 1;
   flex-wrap: wrap;
@@ -588,17 +588,17 @@ const FilterGroup = styled.div`
 
 const FilterIcon = styled.div`
   color: ${props => props.theme.texttertiary};
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
   display: flex;
   align-items: center;
   transition: color 0.3s ease;
 `;
 
 const Select = styled.select`
-  padding: 0.5rem 0.75rem;
+  padding: 0.425rem 0.6375rem;
   border: 2px solid ${props => props.theme.bg3};
-  border-radius: 6px;
-  font-size: 0.875rem;
+  border-radius: 5px;
+  font-size: 0.74375rem;
   background: ${props => props.theme.bg};
   color: ${props => props.theme.textprimary};
   cursor: pointer;
@@ -611,12 +611,12 @@ const Select = styled.select`
 `;
 
 const ResetButton = styled.button`
-  padding: 0.5rem 1rem;
+  padding: 0.425rem 0.85rem;
   background: ${props => props.theme.bg2};
   color: ${props => props.theme.textprimary};
   border: 1px solid ${props => props.theme.bg3};
-  border-radius: 6px;
-  font-size: 0.875rem;
+  border-radius: 5px;
+  font-size: 0.74375rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -629,9 +629,9 @@ const ResetButton = styled.button`
 
 const TableContainer = styled.div`
   background: ${props => props.theme.bgtgderecha};
-  border-radius: 12px;
+  border-radius: 10.2px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.85px 2.55px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 `;
 
@@ -644,12 +644,12 @@ const TableHeader = styled.tr`
   background: ${props => props.theme.bg2};
   
   th {
-    padding: 1rem;
+    padding: 0.85rem;
     text-align: left;
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.68rem;
     color: ${props => props.theme.textprimary};
-    border-bottom: 2px solid ${props => props.theme.bg3};
+    border-bottom: 1.7px solid ${props => props.theme.bg3};
     transition: color 0.3s ease;
   }
 `;
@@ -664,9 +664,9 @@ const TableRow = styled.tr`
   }
   
   td {
-    padding: 1rem;
-    border-bottom: 1px solid ${props => props.theme.bg3};
-    font-size: 0.875rem;
+    padding: 0.85rem;
+    border-bottom: 0.85px solid ${props => props.theme.bg3};
+    font-size: 0.68rem;
     color: ${props => props.theme.textprimary};
     transition: all 0.3s ease;
   }
@@ -771,28 +771,28 @@ const ActionBtn = styled.button`
 // Toast Notifications
 const ToastContainer = styled.div`
   position: fixed;
-  top: 1rem;
-  right: 1rem;
+  top: 0.75rem;
+  right: 0.75rem;
   z-index: 10000;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-width: 400px;
+  gap: 0.5625rem;
+  max-width: 300px;
 `;
 
 const Toast = styled.div`
   display: flex;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.75rem;
+  padding: 0.75rem;
   background: ${props => props.theme.bgtgderecha};
-  border-radius: 12px;
-  border-left: 4px solid ${props =>
+  border-radius: 9px;
+  border-left: 3px solid ${props =>
     props.$type === 'critical' ? '#dc2626' :
       props.$type === 'warning' ? '#d97706' :
         props.$type === 'success' ? '#10b981' :
           '#3b82f6'
   };
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.15);
   animation: slideInRight 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   
   @keyframes slideInRight {
@@ -822,19 +822,19 @@ const ToastContent = styled.div`
 
 const ToastTitle = styled.div`
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.1875rem;
   color: ${props => props.theme.textprimary};
 `;
 
 const ToastList = styled.ul`
-  margin: 0.5rem 0 0 0;
-  padding-left: 1.25rem;
-  font-size: 0.875rem;
+  margin: 0.375rem 0 0 0;
+  padding-left: 0.9375rem;
+  font-size: 0.65625rem;
   color: ${props => props.theme.texttertiary};
 `;
 
 const ToastItem = styled.li`
-  margin: 0.25rem 0;
+  margin: 0.1875rem 0;
 `;
 
 const ToastClose = styled.button`
@@ -842,7 +842,7 @@ const ToastClose = styled.button`
   border: none;
   cursor: pointer;
   color: ${props => props.theme.texttertiary};
-  font-size: 1.25rem;
+  font-size: 0.9375rem;
   padding: 0;
   display: flex;
   align-items: center;

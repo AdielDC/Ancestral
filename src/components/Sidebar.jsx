@@ -57,7 +57,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }) {
       ))}
       <Divider />
       <div className="Themecontent">
-        {sidebarOpen && <span className="titletheme">Dark mode</span>}
+        {sidebarOpen && <span className="titletheme">Apariencia</span>}
         <div className="Togglecontent">
           <div className="grid theme-container">
             <div className="content">
