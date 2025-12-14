@@ -8,7 +8,9 @@ import {
   AiOutlineSetting,
   AiTwotoneReconciliation
 } from "react-icons/ai";
-import { MdOutlineAnalytics, MdLogout, MdAppRegistration, MdOutlineInventory } from "react-icons/md";
+import { MdOutlineAnalytics, MdLogout, MdAppRegistration, MdOutlineInventory, MdAssignmentAdd } from "react-icons/md";
+import { TbTruckDelivery } from "react-icons/tb";
+import { IoReceiptSharp } from "react-icons/io5";
 import { NavLink } from "react-router-dom";
 import { useContext } from "react";
 import { ThemeContext } from "../App";
@@ -94,17 +96,17 @@ const linksArray = [
   },
   {
     label: "Entregas",
-    icon: <AiOutlineApartment />,
+    icon: <TbTruckDelivery />,
     to: "/delivery",
   },
   {
     label: "Recepciones",
-    icon: <MdOutlineAnalytics />,
+    icon: <IoReceiptSharp />,
     to: "/reception",
   },
   {
     label: "Gestión",
-    icon: <MdAppRegistration />,
+    icon: <MdAssignmentAdd />,
     to: "/registros",
   },
   {

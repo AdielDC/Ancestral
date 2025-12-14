@@ -1,7 +1,3 @@
-// Reception.jsx - Componente de Recepción de Insumos con filtrado por cliente
-// Ubicación: src/pages/Reception.jsx
-// ACTUALIZADO: Ahora envía variedad_agave_id y presentacion_id al backend
-
 import { useState, useContext, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import {
@@ -839,7 +835,7 @@ export function Reception() {
           tipo: pendingReceptionData.type,
           codigo_lote: codigoLote,
           stock: 0,
-          stock_minimo: 100,
+          stock_minimo: 500, //Cambio de minimo de stock de acuerdo a la empresa 
           unidad: 'unidades',
           activo: true
         };
@@ -1225,7 +1221,7 @@ export function Reception() {
 
       <ContentCard>
         <CardHeader>
-          <CardTitle>Recepciones Registradas</CardTitle>
+          <CardTitle>Entradas Registradas</CardTitle>
           <CardSubtitle>{displayReceptions.length} recepciones en total</CardSubtitle>
         </CardHeader>
 

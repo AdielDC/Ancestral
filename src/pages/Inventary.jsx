@@ -21,20 +21,20 @@ export function Inventary() {
     proveedores,
     reloadInventory,
     registrarMovimiento,
-    getAlertas,
-    getStockBajo,
     applyFilters
   } = useInventario();
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [toasts, setToasts] = useState([]);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [movementType, setMovementType] = useState('');
   const [currentItem, setCurrentItem] = useState(null);
   const [movementQuantity, setMovementQuantity] = useState('');
   const [movementNote, setMovementNote] = useState('');
   const [movementReference, setMovementReference] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('');
+  const [showToast, setShowToast] = useState(false);
 
   const [filters, setFilters] = useState({
     category: "all",
@@ -44,59 +44,16 @@ export function Inventary() {
     type: "all"
   });
 
-  // Mostrar notificaciones toast
-  const showToast = (message, type, items = []) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type, items }]);
+  // Función para mostrar toast simple
+  const displayToast = (message, type) => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
 
     setTimeout(() => {
-      setToasts(prev => prev.filter(toast => toast.id !== id));
-    }, 8000);
+      setShowToast(false);
+    }, 4000);
   };
-
-  // Cargar alertas al montar el componente
-  useEffect(() => {
-    const loadAlertas = async () => {
-      try {
-        const alertas = await getStockBajo();
-
-        if (alertas && alertas.length > 0) {
-          const criticalItems = alertas.filter(item =>
-            item.stock <= (item.stock_minimo * 0.3)
-          );
-
-          const lowStockItems = alertas.filter(item =>
-            item.stock > (item.stock_minimo * 0.3) &&
-            item.stock < item.stock_minimo
-          );
-
-          if (criticalItems.length > 0) {
-            showToast(
-              `${criticalItems.length} insumo${criticalItems.length > 1 ? 's' : ''} en stock crítico`,
-              'critical',
-              criticalItems.slice(0, 3)
-            );
-          }
-
-          if (lowStockItems.length > 0) {
-            setTimeout(() => {
-              showToast(
-                `${lowStockItems.length} insumo${lowStockItems.length > 1 ? 's' : ''} con stock bajo`,
-                'warning',
-                lowStockItems.slice(0, 2)
-              );
-            }, 500);
-          }
-        }
-      } catch (err) {
-        console.error('Error cargando alertas:', err);
-      }
-    };
-
-    if (!loading && inventory.length > 0) {
-      loadAlertas();
-    }
-  }, [loading, inventory]);
 
   // Aplicar filtros cuando cambien
   useEffect(() => {
@@ -131,12 +88,12 @@ export function Inventary() {
     const quantity = parseInt(movementQuantity);
 
     if (!quantity || quantity <= 0) {
-      showToast('Por favor ingrese una cantidad válida', 'error');
+      displayToast('Por favor ingrese una cantidad válida', 'error');
       return;
     }
 
     if (movementType === 'salida' && quantity > currentItem.stock) {
-      showToast('No hay suficiente stock para esta salida', 'error');
+      displayToast('No hay suficiente stock para esta salida', 'error');
       return;
     }
 
@@ -152,7 +109,7 @@ export function Inventary() {
 
       await registrarMovimiento(movementData);
 
-      showToast(
+      displayToast(
         `${movementType === 'entrada' ? 'Entrada' : 'Salida'} registrada: ${quantity} ${currentItem.unidad}`,
         'success'
       );
@@ -163,7 +120,7 @@ export function Inventary() {
       setMovementNote('');
       setMovementReference('');
     } catch (err) {
-      showToast(
+      displayToast(
         'Error al registrar el movimiento. Por favor intente nuevamente.',
         'error'
       );
@@ -218,31 +175,18 @@ export function Inventary() {
 
   return (
     <Container>
-      {/* Toast Notifications */}
-      <ToastContainer>
-        {toasts.map(toast => (
-          <Toast key={toast.id} $type={toast.type}>
-            <ToastIcon $type={toast.type}>
-              <IoWarningOutline size={24} />
-            </ToastIcon>
-            <ToastContent>
-              <ToastTitle>{toast.message}</ToastTitle>
-              {toast.items.length > 0 && (
-                <ToastList>
-                  {toast.items.map(item => (
-                    <ToastItem key={item.id}>
-                      {item.CATEGORIA_INSUMO?.nombre || 'Sin categoría'} - {item.codigo_lote} ({item.stock} {item.unidad})
-                    </ToastItem>
-                  ))}
-                </ToastList>
-              )}
-            </ToastContent>
-            <ToastClose onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}>
-              <IoClose />
-            </ToastClose>
-          </Toast>
-        ))}
-      </ToastContainer>
+      {/* Toast Notification Simple */}
+      {showToast && (
+        <SimpleToast $type={toastType}>
+          <ToastIcon $type={toastType}>
+            {toastType === 'success' ? '✓' : toastType === 'error' ? '✕' : 'ℹ'}
+          </ToastIcon>
+          <ToastMessage>{toastMessage}</ToastMessage>
+          <ToastClose onClick={() => setShowToast(false)}>
+            <IoClose />
+          </ToastClose>
+        </SimpleToast>
+      )}
 
       {/* Header */}
       <Header>
@@ -299,7 +243,7 @@ export function Inventary() {
             </Select>
 
             <Select value={filters.type} onChange={(e) => handleFilterChange('type', e.target.value)}>
-              <option value="all">Todos los tipos</option>
+              <option value="all">Todos los destinos</option>
               <option value="Nacional">Nacional</option>
               <option value="Exportación">Exportación</option>
             </Select>
@@ -774,31 +718,24 @@ const ActionBtn = styled.button`
   }
 `;
 
-// Toast Notifications
-const ToastContainer = styled.div`
+// Toast Simple
+const SimpleToast = styled.div`
   position: fixed;
-  top: 0.75rem;
-  right: 0.75rem;
+  top: 1rem;
+  right: 1rem;
   z-index: 10000;
   display: flex;
-  flex-direction: column;
-  gap: 0.5625rem;
-  max-width: 300px;
-`;
-
-const Toast = styled.div`
-  display: flex;
+  align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem;
+  padding: 1rem 1.25rem;
   background: ${props => props.theme.bgtgderecha};
-  border-radius: 9px;
-  border-left: 3px solid ${props =>
-    props.$type === 'critical' ? '#dc2626' :
-      props.$type === 'warning' ? '#d97706' :
-        props.$type === 'success' ? '#10b981' :
-          '#3b82f6'
+  border-radius: 10px;
+  border-left: 4px solid ${props =>
+    props.$type === 'success' ? '#10b981' :
+      props.$type === 'error' ? '#ef4444' :
+        '#3b82f6'
   };
-  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   animation: slideInRight 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   
   @keyframes slideInRight {
@@ -814,33 +751,27 @@ const Toast = styled.div`
 `;
 
 const ToastIcon = styled.div`
-  color: ${props =>
-    props.$type === 'critical' ? '#dc2626' :
-      props.$type === 'warning' ? '#d97706' :
-        props.$type === 'success' ? '#10b981' :
-          '#3b82f6'
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  color: white;
+  background: ${props =>
+    props.$type === 'success' ? '#10b981' :
+      props.$type === 'error' ? '#ef4444' :
+        '#3b82f6'
   };
 `;
 
-const ToastContent = styled.div`
+const ToastMessage = styled.div`
   flex: 1;
-`;
-
-const ToastTitle = styled.div`
-  font-weight: 600;
-  margin-bottom: 0.1875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: ${props => props.theme.textprimary};
-`;
-
-const ToastList = styled.ul`
-  margin: 0.375rem 0 0 0;
-  padding-left: 0.9375rem;
-  font-size: 0.65625rem;
-  color: ${props => props.theme.texttertiary};
-`;
-
-const ToastItem = styled.li`
-  margin: 0.1875rem 0;
 `;
 
 const ToastClose = styled.button`
@@ -848,10 +779,11 @@ const ToastClose = styled.button`
   border: none;
   cursor: pointer;
   color: ${props => props.theme.texttertiary};
-  font-size: 0.9375rem;
+  font-size: 1.25rem;
   padding: 0;
   display: flex;
   align-items: center;
+  transition: color 0.2s;
   
   &:hover {
     color: ${props => props.theme.textprimary};

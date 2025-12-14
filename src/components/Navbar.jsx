@@ -11,30 +11,112 @@ export function Navbar() {
   const [showAlertas, setShowAlertas] = useState(false);
   const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [countAlertas, setCountAlertas] = useState(0);
   
   const navigate = useNavigate();
   const user = authService.getCurrentUser();
   const alertasRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // ✅ SOLUCIÓN SIMPLE: Solo cargar cuando se abre el dropdown
-  const loadAlertas = async () => {
+  // ✅ CARGAR ALERTAS AL INICIAR LA APLICACIÓN
+  useEffect(() => {
+    loadAlertasCount();
+    
+    // Recargar alertas cada 5 minutos
+    const interval = setInterval(() => {
+      loadAlertasCount();
+    }, 5 * 60 * 1000); // 5 minutos
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ✅ Función para cargar SOLO el conteo de alertas (más ligero)
+  const loadAlertasCount = async () => {
+    try {
+      const response = await inventarioService.getStockBajo();
+      
+      let items = [];
+      if (Array.isArray(response)) {
+        items = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        items = response.data;
+      } else if (response && response.success && response.data && Array.isArray(response.data)) {
+        items = response.data;
+      }
+
+      setCountAlertas(items.length);
+      
+      console.log(`🔔 Alertas actualizadas: ${items.length}`);
+    } catch (error) {
+      // Silenciar errores si no hay backend
+      setCountAlertas(0);
+    }
+  };
+
+  // ✅ Función para cargar alertas completas (cuando se abre el dropdown)
+  const loadAlertasCompletas = async () => {
     try {
       setLoading(true);
-      const response = await inventarioService.getAlertas();
+      const response = await inventarioService.getStockBajo();
       
-      if (response.success && response.data) {
-        const alertasOrdenadas = response.data.sort((a, b) => {
-          if (a.tipo_alerta === 'stock_critico' && b.tipo_alerta !== 'stock_critico') return -1;
-          if (a.tipo_alerta !== 'stock_critico' && b.tipo_alerta === 'stock_critico') return 1;
-          return new Date(b.fecha_alerta || b.creado_en) - new Date(a.fecha_alerta || a.creado_en);
-        });
-        
-        setAlertas(alertasOrdenadas);
+      let items = [];
+      if (Array.isArray(response)) {
+        items = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        items = response.data;
+      } else if (response && response.success && response.data && Array.isArray(response.data)) {
+        items = response.data;
       }
+
+      // Mapear items para tener estructura correcta
+      const alertasTransformadas = items.map(item => {
+        const stockPercentage = item.stock_minimo > 0 
+          ? (item.stock / item.stock_minimo) * 100 
+          : 100;
+        
+        const tipoAlerta = item.stock <= (item.stock_minimo * 0.3) 
+          ? 'stock_critico' 
+          : 'stock_bajo';
+
+        // Mapear alias del backend
+        const CATEGORIA_INSUMO = item.categoria || item.CATEGORIA_INSUMO;
+        const CLIENTE = item.cliente || item.CLIENTE;
+        const categoriaNombre = CATEGORIA_INSUMO?.nombre || 'Insumo';
+
+        return {
+          id: item.id,
+          tipo_alerta: tipoAlerta,
+          inventario_id: item.id,
+          fecha_alerta: item.ultima_actualizacion || new Date().toISOString(),
+          vista: false,
+          resuelta: false,
+          mensaje: `${categoriaNombre} - ${item.codigo_lote}: Stock ${tipoAlerta === 'stock_critico' ? 'crítico' : 'bajo'}`,
+          INVENTARIO: {
+            id: item.id,
+            codigo_lote: item.codigo_lote,
+            stock: item.stock,
+            stock_minimo: item.stock_minimo,
+            unidad: item.unidad,
+            CATEGORIA_INSUMO,
+            CLIENTE
+          },
+          creado_en: item.ultima_actualizacion || item.creado_en
+        };
+      });
+
+      // Ordenar por criticidad
+      alertasTransformadas.sort((a, b) => {
+        if (a.tipo_alerta === 'stock_critico' && b.tipo_alerta !== 'stock_critico') return -1;
+        if (a.tipo_alerta !== 'stock_critico' && b.tipo_alerta === 'stock_critico') return 1;
+        return new Date(b.fecha_alerta) - new Date(a.fecha_alerta);
+      });
+
+      setAlertas(alertasTransformadas);
+      setCountAlertas(alertasTransformadas.length);
     } catch (error) {
       // Silenciar errores si no hay backend
       setAlertas([]);
+      setCountAlertas(0);
     } finally {
       setLoading(false);
     }
@@ -53,15 +135,15 @@ export function Navbar() {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []); // ✅ Sin dependencias problemáticas
+  }, []);
 
   const handleOpenAlertas = () => {
     const wasOpen = showAlertas;
     setShowAlertas(!wasOpen);
     
-    // Solo cargar si se está ABRIENDO
-    if (!wasOpen) {
-      loadAlertas();
+    // Solo cargar detalles si se está ABRIENDO y aún no se han cargado
+    if (!wasOpen && alertas.length === 0) {
+      loadAlertasCompletas();
     }
   };
 
@@ -103,8 +185,6 @@ export function Navbar() {
 
   if (!user) return null;
 
-  const countAlertas = alertas.length;
-
   return (
     <NavbarContainer>
       <LeftSection>
@@ -132,7 +212,10 @@ export function Navbar() {
 
               <AlertasList>
                 {loading ? (
-                  <AlertasLoading>Cargando alertas...</AlertasLoading>
+                  <AlertasLoading>
+                    <LoadingSpinner />
+                    <p>Cargando alertas...</p>
+                  </AlertasLoading>
                 ) : alertas.length === 0 ? (
                   <AlertasEmpty>
                     <FiPackage size={40} />
@@ -140,8 +223,14 @@ export function Navbar() {
                     <span>Todo el inventario está en niveles normales</span>
                   </AlertasEmpty>
                 ) : (
-                  alertas.map((alerta) => (
-                    <AlertaItem key={alerta.id}>
+                  alertas.slice(0, 5).map((alerta) => (
+                    <AlertaItem 
+                      key={alerta.id}
+                      onClick={() => {
+                        navigate('/alertas');
+                        setShowAlertas(false);
+                      }}
+                    >
                       <AlertaIconWrapper $tipo={alerta.tipo_alerta}>
                         <FiAlertTriangle size={18} />
                       </AlertaIconWrapper>
@@ -178,7 +267,7 @@ export function Navbar() {
                       setShowAlertas(false);
                     }}
                   >
-                    Ver inventario completo
+                    Ver todas las alertas ({alertas.length})
                   </VerTodasBtn>
                 </AlertasFooter>
               )}
@@ -453,11 +542,30 @@ const AlertasList = styled.div`
   }
 `;
 
+const LoadingSpinner = styled.div`
+  width: 32px;
+  height: 32px;
+  border: 3px solid ${({ theme }) => theme.bg3};
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+`;
+
 const AlertasLoading = styled.div`
-  padding: 2rem;
+  padding: 3rem 2rem;
   text-align: center;
   color: ${({ theme }) => theme.bg4};
   font-size: 0.9rem;
+
+  p {
+    margin: 0;
+    color: ${({ theme }) => theme.text};
+  }
 `;
 
 const AlertasEmpty = styled.div`
@@ -489,6 +597,7 @@ const AlertaItem = styled.div`
   gap: 0.75rem;
   border-bottom: 1px solid ${({ theme }) => theme.bg3};
   transition: background 0.2s;
+  cursor: pointer;
 
   &:hover {
     background: ${({ theme }) => theme.bg2};
@@ -508,9 +617,9 @@ const AlertaIconWrapper = styled.div`
   justify-content: center;
   flex-shrink: 0;
   background: ${props => 
-    props.$tipo === 'stock_critico' ? '#fee2e215' :
-    props.$tipo === 'stock_bajo' ? '#fef3c715' :
-    '#dbeafe15'
+    props.$tipo === 'stock_critico' ? 'rgba(239, 68, 68, 0.1)' :
+    props.$tipo === 'stock_bajo' ? 'rgba(245, 158, 11, 0.1)' :
+    'rgba(59, 130, 246, 0.1)'
   };
   color: ${props => 
     props.$tipo === 'stock_critico' ? '#ef4444' :
