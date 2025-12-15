@@ -22,7 +22,16 @@ export const marcaService = {
       const response = await api.get(url);
       return response.data;
     } catch (error) {
-      console.error('Error al obtener marcas:', error);
+      throw error;
+    }
+  },
+
+  // Obtener un marca por ID
+  getById: async (id) => {
+    try {
+      const response = await api.get(`/marcas/${id}`);
+      return response.data;
+    } catch (error) {
       throw error;
     }
   },
@@ -33,7 +42,6 @@ export const marcaService = {
       const response = await api.get(`/marcas?cliente_id=${clienteId}`);
       return response.data;
     } catch (error) {
-      console.error('Error al obtener marcas del cliente:', error);
       throw error;
     }
   },
@@ -44,7 +52,6 @@ export const marcaService = {
       const response = await api.post('/marcas', data);
       return response.data;
     } catch (error) {
-      console.error('Error al crear marca:', error);
       throw error;
     }
   },
@@ -55,7 +62,16 @@ export const marcaService = {
       const response = await api.put(`/marcas/${id}`, data);
       return response.data;
     } catch (error) {
-      console.error('Error al actualizar marca:', error);
+      throw error;
+    }
+  },
+
+  // Eliminar marca (soft delete)
+  'delete': async (id) => {
+    try {
+      const response = await api.delete(`/marcas/${id}`);
+      return response.data;
+    } catch (error) {
       throw error;
     }
   }

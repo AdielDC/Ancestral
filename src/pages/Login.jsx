@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import authService from "../services/authService";
-import logo from "../assets/favicon.png";
+import logo from "../assets/logo.png";
 
 export function Login() {
   const navigate = useNavigate();
@@ -58,14 +58,7 @@ export function Login() {
       <ContentWrapper>
         <LeftSection>
           <FormContainer>
-            <LogoSection>
-              <Logo>
-                <img src={logo} alt="Logo Ancestral" />
-              </Logo>
-              <CompanyTitle>Envasadora Ancestral</CompanyTitle>
-            </LogoSection>
-
-            <WelcomeText>Por favor inicia sesión en tu cuenta</WelcomeText>
+            <WelcomeText> INICIA SESIÓN </WelcomeText>
 
             <LoginForm onSubmit={handleSubmit}>
               <InputGroup>
@@ -112,6 +105,11 @@ export function Login() {
         </LeftSection>
 
         <RightSection>
+          <LogoSection>
+            <Logo>
+              <img src={logo} alt="Logo Ancestral" />
+            </Logo>
+          </LogoSection>
           <ContentSection>
             <RightTitle>Tradición y calidad</RightTitle>
             <RightDescription>
@@ -157,12 +155,12 @@ const ContentWrapper = styled.div`
 const LeftSection = styled.div`
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 2rem;
+  padding: 3rem 2rem 2rem 2rem;
 
   @media (min-width: 768px) {
-    padding: 3rem;
+    padding: 4rem 3rem 3rem 3rem;
   }
 `;
 
@@ -177,33 +175,21 @@ const LogoSection = styled.div`
 `;
 
 const Logo = styled.div`
-  width: 80px;
-  height: 80px;
-  background: #000000;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #d4af37;
-  font-size: 2rem;
-  font-weight: bold;
-  margin: 0 auto 1rem auto;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-`;
 
-const CompanyTitle = styled.h4`
-  color: #000000;
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin: 0;
-  line-height: 1.4;
+  img {
+    width: 50%;
+    height: 50%;
+    object-fit: contain;
+    border-radius: 50%;
+  }
 `;
 
 const WelcomeText = styled.p`
-  color: #6b7280;
-  font-size: 0.95rem;
-  margin-bottom: 2rem;
-  text-align: left;
+font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.3;
+  text-align: center;
 `;
 
 const LoginForm = styled.form`
@@ -350,6 +336,7 @@ const RightSection = styled.div`
   flex: 1;
   background: linear-gradient(135deg, #000000 0%, #333333 100%);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem;
@@ -389,6 +376,7 @@ const RightTitle = styled.h4`
   font-weight: 600;
   margin: 0 0 1.5rem 0;
   line-height: 1.3;
+  text-align: center;
 `;
 
 const RightDescription = styled.p`
@@ -396,4 +384,5 @@ const RightDescription = styled.p`
   line-height: 1.6;
   margin: 0;
   opacity: 0.95;
+  text-align: justify;
 `;

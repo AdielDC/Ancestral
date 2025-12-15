@@ -86,15 +86,82 @@ class AuthService {
     return null;
   }
 
-  // Verificar si está autenticado
+  // Verificar si el token está expirado
+  isTokenExpired() {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return true;
+
+      // Decodificar el JWT para obtener el payload
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      
+      // Verificar si tiene campo de expiración
+      if (!payload.exp) {
+        console.warn('Token sin campo de expiración');
+        return false; // Si no tiene exp, asumimos que no expira
+      }
+
+      // Comparar con el tiempo actual
+      const expiration = payload.exp * 1000; // Convertir a milisegundos
+      const now = Date.now();
+
+      // Agregar margen de 10 segundos para evitar problemas de timing
+      return now >= (expiration - 10000);
+    } catch (error) {
+      console.error('Error al verificar expiración del token:', error);
+      return true; // Si hay error al decodificar, considerar expirado
+    }
+  }
+
+  // Verificar si está autenticado y el token es válido
   isAuthenticated() {
     const token = localStorage.getItem('token');
-    return !!token;
+    if (!token) return false;
+    
+    // Verificar que el token no esté expirado
+    if (this.isTokenExpired()) {
+      // Limpiar datos si el token expiró
+      this.logout();
+      return false;
+    }
+    
+    return true;
   }
 
   // Obtener token
   getToken() {
     return localStorage.getItem('token');
+  }
+
+  // Obtener información del token decodificado
+  getTokenPayload() {
+    try {
+      const token = this.getToken();
+      if (!token) return null;
+
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload;
+    } catch (error) {
+      console.error('Error al decodificar token:', error);
+      return null;
+    }
+  }
+
+  // Obtener tiempo restante del token (en minutos)
+  getTokenTimeRemaining() {
+    try {
+      const payload = this.getTokenPayload();
+      if (!payload || !payload.exp) return 0;
+
+      const expiration = payload.exp * 1000;
+      const now = Date.now();
+      const remaining = expiration - now;
+
+      return Math.floor(remaining / 1000 / 60); // Convertir a minutos
+    } catch (error) {
+      console.error('Error al calcular tiempo restante:', error);
+      return 0;
+    }
   }
 
   // Recuperar contraseña
