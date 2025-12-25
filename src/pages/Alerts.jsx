@@ -405,7 +405,7 @@ export function Alerts() {
                       $primary 
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate('/inventary');
+                        navigate(`/inventario?highlight=${alerta.INVENTARIO.id}`);
                       }}
                     >
                       <FiPackage />
@@ -414,7 +414,7 @@ export function Alerts() {
                     <ActionButton 
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate('/reception');
+                        navigate('/recepcion');
                       }}
                     >
                       Registrar Recepción

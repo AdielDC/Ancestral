@@ -1,6 +1,3 @@
-// ClienteConfig.jsx - Componente para administrar la configuración de clientes
-// Ubicación: src/pages/ClienteConfig.jsx
-
 import { useState, useContext, useEffect } from "react";
 import styled from "styled-components";
 import {
@@ -16,7 +13,7 @@ import {
 } from "react-icons/io5";
 import { ThemeContext } from "../App";
 import { clienteService, presentacionService } from "../services/inventarioService";
-import { variedadAgaveService } from "../services/inventarioService"; // Ajusta según tu estructura
+import { variedadAgaveService } from "../services/inventarioService"; 
 import { 
   obtenerTodasConfiguraciones, 
   actualizarConfiguracionCliente 
@@ -62,8 +59,14 @@ export function ClienteConfig() {
       ]);
 
       setClientes((clientesRes.data || clientesRes || []).filter(c => c.activo));
-      setVariedades(variedadesRes.data || variedadesRes || []);
-      setPresentaciones(presentacionesRes.data || presentacionesRes || []);
+      
+      // ✅ Filtrar solo variedades activas
+      const variedadesData = variedadesRes.data || variedadesRes || [];
+      setVariedades(variedadesData.filter(v => v.activo !== false));
+      
+      // ✅ Filtrar solo presentaciones activas
+      const presentacionesData = presentacionesRes.data || presentacionesRes || [];
+      setPresentaciones(presentacionesData.filter(p => p.activo !== false));
 
       // Cargar configuraciones existentes
       try {

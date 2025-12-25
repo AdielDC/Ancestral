@@ -1,11 +1,17 @@
-import { useState, useEffect, useContext } from "react";
-import styled from "styled-components";
-import { IoClose, IoWarningOutline, IoSearchOutline, IoFilterOutline, IoAddOutline, IoRemoveOutline } from "react-icons/io5";
+import { useState, useEffect, useContext, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import styled, { keyframes } from "styled-components";
+import { IoClose, IoWarningOutline, IoSearchOutline, IoFilterOutline, IoAddOutline, IoRemoveOutline, IoLocateOutline } from "react-icons/io5";
 import { ThemeContext } from "../App";
 import { useInventario } from "../hooks/useInventario";
 
 export function Inventary() {
   const { theme } = useContext(ThemeContext);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Refs para hacer scroll a filas específicas
+  const rowRefs = useRef({});
 
   // Hook personalizado para manejo de inventario
   const {
@@ -25,6 +31,7 @@ export function Inventary() {
   } = useInventario();
 
   const [selectedItem, setSelectedItem] = useState(null);
+  const [highlightedId, setHighlightedId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [movementType, setMovementType] = useState('');
@@ -59,6 +66,67 @@ export function Inventary() {
   useEffect(() => {
     applyFilters(filters, searchTerm);
   }, [filters, searchTerm, inventory]);
+
+  // Efecto para manejar el highlight cuando se navega desde alertas
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight');
+    
+    if (highlightId && inventory.length > 0) {
+      const id = parseInt(highlightId);
+      const item = inventory.find(i => i.id === id);
+      
+      if (item) {
+        console.log('🎯 Item encontrado para highlight:', item);
+        
+        // Aplicar filtros automáticamente según el estado del stock
+        const stockPercentage = item.stock_minimo > 0 
+          ? (item.stock / item.stock_minimo) * 100 
+          : 100;
+        
+        // Limpiar filtros primero para asegurar que el item sea visible
+        setFilters({
+          category: "all",
+          client: "all",
+          variety: "all",
+          presentation: "all",
+          type: "all"
+        });
+        setSearchTerm("");
+        
+        setHighlightedId(id);
+        setSelectedItem(id);
+        
+        // Esperar un momento para que el DOM se actualice
+        setTimeout(() => {
+          const element = rowRefs.current[id];
+          if (element) {
+            element.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            });
+            
+            displayToast(
+              `Item encontrado: ${item.CATEGORIA_INSUMO?.nombre || 'Insumo'} - ${item.codigo_lote}`,
+              'info'
+            );
+          } else {
+            console.log('⚠️ No se encontró el elemento en el DOM');
+          }
+          
+          // Remover el highlight después de 5 segundos
+          setTimeout(() => {
+            setHighlightedId(null);
+            // Limpiar el parámetro de la URL
+            navigate('/inventario', { replace: true });
+          }, 5000);
+        }, 300);
+      } else {
+        console.log('❌ No se encontró el item con ID:', id);
+        displayToast('No se encontró el item en el inventario', 'error');
+        navigate('/inventario', { replace: true });
+      }
+    }
+  }, [searchParams, inventory, navigate]);
 
   const handleFilterChange = (filterName, value) => {
     setFilters(prev => ({ ...prev, [filterName]: value }));
@@ -279,17 +347,27 @@ export function Inventary() {
             ) : (
               filteredInventory.map((item) => {
                 const stockStatus = getStockStatus(item);
+                const isHighlighted = highlightedId === item.id;
 
                 return (
                   <TableRow
                     key={item.id}
+                    ref={(el) => (rowRefs.current[item.id] = el)}
                     $selected={selectedItem === item.id}
+                    $highlighted={isHighlighted}
                     onClick={() => setSelectedItem(item.id)}
                   >
                     <td>
-                      <CategoryBadge $category={item.CATEGORIA_INSUMO?.nombre}>
-                        {item.CATEGORIA_INSUMO?.nombre || 'Sin categoría'}
-                      </CategoryBadge>
+                      <CellContent>
+                        {isHighlighted && (
+                          <HighlightIndicator>
+                            <IoLocateOutline />
+                          </HighlightIndicator>
+                        )}
+                        <CategoryBadge $category={item.CATEGORIA_INSUMO?.nombre}>
+                          {item.CATEGORIA_INSUMO?.nombre || 'Sin categoría'}
+                        </CategoryBadge>
+                      </CellContent>
                     </td>
                     <td>{item.CLIENTE?.nombre || '-'}</td>
                     <td>{item.VARIEDADES_AGAVE?.nombre || '-'}</td>
@@ -604,13 +682,41 @@ const TableHeader = styled.tr`
   }
 `;
 
+// Animación de pulso para el highlight
+const pulseAnimation = keyframes`
+  0% {
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 15px rgba(217, 119, 6, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0);
+  }
+`;
+
 const TableRow = styled.tr`
   cursor: pointer;
   transition: all 0.2s;
-  background: ${props => props.$selected ? 'rgba(217, 119, 6, 0.1)' : 'transparent'};
+  background: ${props => {
+    if (props.$highlighted) return 'rgba(217, 119, 6, 0.15)';
+    if (props.$selected) return 'rgba(217, 119, 6, 0.1)';
+    return 'transparent';
+  }};
+  position: relative;
+
+  /* Efecto de highlight con borde izquierdo */
+  ${({ $highlighted }) => $highlighted && `
+    border-left: 4px solid #d97706;
+    animation: ${pulseAnimation} 1.5s ease-in-out 3;
+  `}
 
   &:hover {
-    background: ${props => props.$selected ? 'rgba(217, 119, 6, 0.15)' : props.theme.bg2};
+    background: ${props => {
+      if (props.$highlighted) return 'rgba(217, 119, 6, 0.2)';
+      if (props.$selected) return 'rgba(217, 119, 6, 0.15)';
+      return props.theme.bg2;
+    }};
   }
   
   td {
@@ -620,6 +726,20 @@ const TableRow = styled.tr`
     color: ${props => props.theme.textprimary};
     transition: all 0.3s ease;
   }
+`;
+
+const CellContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const HighlightIndicator = styled.div`
+  color: #d97706;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  animation: ${pulseAnimation} 1.5s ease-in-out infinite;
 `;
 
 const CategoryBadge = styled.span`

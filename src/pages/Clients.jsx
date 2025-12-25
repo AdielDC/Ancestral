@@ -174,7 +174,7 @@ export function Clients() {
             { name: 'region', label: 'Región', type: 'text', icon: <IoLocationOutline /> },
             { name: 'descripcion', label: 'Descripción', type: 'textarea', icon: null }
           ],
-          emptyForm: { nombre: '', region: '', descripcion: '' }
+          emptyForm: { nombre: '', region: '', descripcion: '', activo: true }
         };
       case CATALOG_TYPES.PRESENTACIONES:
         return {
@@ -184,7 +184,7 @@ export function Clients() {
             { name: 'volumen', label: 'Volumen (ej: 750 ML)', type: 'text', required: true, icon: <IoResizeOutline /> },
             { name: 'descripcion', label: 'Descripción', type: 'textarea', icon: null }
           ],
-          emptyForm: { volumen: '', descripcion: '' }
+          emptyForm: { volumen: '', descripcion: '', activo: true }
         };
       default:
         return { title: '', icon: null, fields: [], emptyForm: {} };
@@ -306,71 +306,66 @@ export function Clients() {
     }
   };
 
-  // Eliminar
-  const handleDelete = () => {
+  // Toggle estado activo (funciona para clientes, variedades y presentaciones)
+  const handleToggleActivo = () => {
     if (!selectedItem) return;
+
+    const nuevoEstado = !selectedItem.activo;
+    const mensaje = nuevoEstado ? 'activar' : 'desactivar';
     
-    const config = getCatalogConfig();
-    const itemName = selectedItem.nombre || selectedItem.volumen || 'este elemento';
+    // Obtener el nombre del elemento según el catálogo
+    let itemName = '';
+    let entityName = '';
     
-    requestConfirm(`¿Estás seguro de eliminar "${itemName}"?`, async () => {
+    switch (activeCatalog) {
+      case CATALOG_TYPES.CLIENTES:
+        itemName = selectedItem.nombre;
+        entityName = 'cliente';
+        break;
+      case CATALOG_TYPES.VARIEDADES:
+        itemName = selectedItem.nombre;
+        entityName = 'variedad';
+        break;
+      case CATALOG_TYPES.PRESENTACIONES:
+        itemName = selectedItem.volumen;
+        entityName = 'presentación';
+        break;
+    }
+
+    requestConfirm(`¿Estás seguro de ${mensaje} ${entityName === 'presentación' ? 'la' : 'el'} ${entityName} "${itemName}"?`, async () => {
       try {
         setSaving(true);
         
         switch (activeCatalog) {
           case CATALOG_TYPES.CLIENTES:
-            await clienteService.delete(selectedItem.id);
-            setClientes(prev => prev.filter(c => c.id !== selectedItem.id));
+            await clienteService.update(selectedItem.id, { activo: nuevoEstado });
+            setClientes(prev => prev.map(c => 
+              c.id === selectedItem.id ? { ...c, activo: nuevoEstado } : c
+            ));
             break;
           case CATALOG_TYPES.VARIEDADES:
-            await variedadAgaveService.delete(selectedItem.id);
-            setVariedades(prev => prev.filter(v => v.id !== selectedItem.id));
+            await variedadAgaveService.update(selectedItem.id, { activo: nuevoEstado });
+            setVariedades(prev => prev.map(v => 
+              v.id === selectedItem.id ? { ...v, activo: nuevoEstado } : v
+            ));
             break;
           case CATALOG_TYPES.PRESENTACIONES:
-            await presentacionService.delete(selectedItem.id);
-            setPresentaciones(prev => prev.filter(p => p.id !== selectedItem.id));
+            await presentacionService.update(selectedItem.id, { activo: nuevoEstado });
+            setPresentaciones(prev => prev.map(p => 
+              p.id === selectedItem.id ? { ...p, activo: nuevoEstado } : p
+            ));
             break;
         }
-        
-        showToast('Elemento eliminado exitosamente', 'success');
-        setSelectedItem(null);
-        setFormData({});
-        setIsEditing(false);
-      } catch (error) {
-        console.error('Error al eliminar:', error);
-        showToast('Error al eliminar el elemento', 'error');
-      } finally {
-        setSaving(false);
-      }
-    });
-  };
-
-  // Toggle estado activo del cliente
-  const handleToggleActivo = () => {
-    if (!selectedItem || activeCatalog !== CATALOG_TYPES.CLIENTES) return;
-
-    const nuevoEstado = !selectedItem.activo;
-    const mensaje = nuevoEstado ? 'activar' : 'desactivar';
-
-    requestConfirm(`¿Estás seguro de ${mensaje} al cliente "${selectedItem.nombre}"?`, async () => {
-      try {
-        setSaving(true);
-        await clienteService.update(selectedItem.id, { activo: nuevoEstado });
-        
-        // Actualizar en la lista
-        setClientes(prev => prev.map(c => 
-          c.id === selectedItem.id ? { ...c, activo: nuevoEstado } : c
-        ));
         
         // Actualizar el item seleccionado
         const updatedItem = { ...selectedItem, activo: nuevoEstado };
         setSelectedItem(updatedItem);
         setFormData(updatedItem);
         
-        showToast(`Cliente ${nuevoEstado ? 'activado' : 'desactivado'} exitosamente`, 'success');
+        showToast(`${entityName.charAt(0).toUpperCase() + entityName.slice(1)} ${nuevoEstado ? 'activado' : 'desactivado'} exitosamente`, 'success');
       } catch (error) {
-        console.error('Error al cambiar estado del cliente:', error);
-        showToast('Error al cambiar el estado del cliente', 'error');
+        console.error('Error al cambiar estado:', error);
+        showToast(`Error al cambiar el estado ${entityName === 'presentación' ? 'de la' : 'del'} ${entityName}`, 'error');
       } finally {
         setSaving(false);
       }
@@ -629,26 +624,18 @@ export function Clients() {
                     </>
                   ) : (
                     <>
-                      {/* Botón de Activar/Desactivar para clientes */}
-                      {activeCatalog === CATALOG_TYPES.CLIENTES && (
-                        <ToggleButton 
-                          $active={selectedItem.activo}
-                          onClick={handleToggleActivo}
-                          disabled={saving}
-                        >
-                          <IoToggle size={17} />
-                          {selectedItem.activo ? 'Desactivar' : 'Activar'}
-                        </ToggleButton>
-                      )}
+                      {/* Botón de Activar/Desactivar para todos los catálogos */}
+                      <ToggleButton 
+                        $active={selectedItem.activo}
+                        onClick={handleToggleActivo}
+                        disabled={saving}
+                      >
+                        <IoToggle size={17} />
+                        {selectedItem.activo ? 'Desactivar' : 'Activar'}
+                      </ToggleButton>
                       <EditButton onClick={handleEdit}>
                         Editar
                       </EditButton>
-                      {/* Botón de eliminar solo para no clientes */}
-                      {activeCatalog !== CATALOG_TYPES.CLIENTES && (
-                        <DeleteButton onClick={handleDelete} disabled={saving}>
-                          <IoTrashOutline size={15.3} />
-                        </DeleteButton>
-                      )}
                     </>
                   )}
                 </DetailActions>
@@ -735,8 +722,8 @@ export function Clients() {
                   </MarcasSection>
                 )}
 
-                {/* Información adicional para clientes */}
-                {activeCatalog === CATALOG_TYPES.CLIENTES && selectedItem && !isCreating && (
+                {/* Información adicional */}
+                {selectedItem && !isCreating && (
                   <InfoCard>
                     <InfoCardTitle>Información del Registro</InfoCardTitle>
                     <InfoRow>
@@ -853,6 +840,7 @@ export function Clients() {
 }
 
 // ==================== STYLED COMPONENTS ====================
+// (Todos los styled components permanecen exactamente igual que en el código original)
 
 const Container = styled.div`
   min-height: 100vh;

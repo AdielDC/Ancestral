@@ -92,17 +92,17 @@ const linksArray = [
   {
     label: "Inventario",
     icon: <MdOutlineInventory />,
-    to: "/inventary",
+    to: "/inventario",
   },
   {
     label: "Entregas",
     icon: <TbTruckDelivery />,
-    to: "/delivery",
+    to: "/salidas",
   },
   {
     label: "Recepciones",
     icon: <IoReceiptSharp />,
-    to: "/reception",
+    to: "/recepcion",
   },
   {
     label: "Gestión",

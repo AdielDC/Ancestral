@@ -48,7 +48,7 @@ export function MyRoutes() {
       />
 
       <Route
-        path="/inventary"
+        path="/inventario"
         element={
           <ProtectedRoute>
             <Inventary />
@@ -57,7 +57,7 @@ export function MyRoutes() {
       />
 
       <Route
-        path="/delivery"
+        path="/salidas"
         element={
           <ProtectedRoute requireOperador>
             <Delivery />
@@ -66,7 +66,7 @@ export function MyRoutes() {
       />
 
       <Route
-        path="/reception"
+        path="/recepcion"
         element={
           <ProtectedRoute requireOperador>
             <Reception />
