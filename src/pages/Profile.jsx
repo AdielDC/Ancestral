@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { toast } from 'react-hot-toast';
 import authService from '../services/authService';
 import usuarioService from '../services/usuarioService';
@@ -13,7 +13,12 @@ import {
   FaSave, 
   FaUserCircle,
   FaCalendarAlt,
-  FaShieldAlt
+  FaShieldAlt,
+  FaEye,
+  FaEyeSlash,
+  FaCheck,
+  FaTimes,
+  FaLock
 } from 'react-icons/fa';
 import { MdEdit } from 'react-icons/md';
 
@@ -24,6 +29,11 @@ export function Profile() {
   const [editMode, setEditMode] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Estados para mostrar/ocultar contraseñas
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -36,9 +46,33 @@ export function Profile() {
     confirm_password: ''
   });
 
+  // Estado para validaciones de contraseña
+  const [passwordValidation, setPasswordValidation] = useState({
+    minLength: false,
+    hasUpperCase: false,
+    hasLowerCase: false,
+    hasNumber: false,
+    hasSpecialChar: false,
+    passwordsMatch: false
+  });
+
   useEffect(() => {
     cargarPerfil();
   }, []);
+
+  // Validar contraseña en tiempo real
+  useEffect(() => {
+    const { new_password, confirm_password } = passwordData;
+    
+    setPasswordValidation({
+      minLength: new_password.length >= 6,
+      hasUpperCase: /[A-Z]/.test(new_password),
+      hasLowerCase: /[a-z]/.test(new_password),
+      hasNumber: /[0-9]/.test(new_password),
+      hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(new_password),
+      passwordsMatch: new_password === confirm_password && new_password !== ''
+    });
+  }, [passwordData.new_password, passwordData.confirm_password]);
 
   const cargarPerfil = async () => {
     try {
@@ -50,7 +84,6 @@ export function Profile() {
         return;
       }
 
-      // Obtener datos actualizados del servidor
       const response = await usuarioService.obtenerUsuario(currentUser.id);
       setUsuario(response);
       setFormData({
@@ -88,7 +121,6 @@ export function Profile() {
       setSaving(true);
       await usuarioService.actualizarUsuario(usuario.id, formData);
       
-      // Actualizar el usuario en localStorage
       const currentUser = authService.getCurrentUser();
       const updatedUser = { ...currentUser, ...formData };
       localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -130,7 +162,7 @@ export function Profile() {
         new_password: '',
         confirm_password: ''
       });
-      toast.success('Contraseña actualizada exitosamente');
+      toast.success('¡Contraseña actualizada exitosamente!');
     } catch (error) {
       toast.error(error.message || 'Error al cambiar la contraseña');
     } finally {
@@ -144,6 +176,18 @@ export function Profile() {
       email: usuario.email
     });
     setEditMode(false);
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPasswordData({
+      current_password: '',
+      new_password: '',
+      confirm_password: ''
+    });
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
   };
 
   const getRolLabel = (rol) => {
@@ -174,6 +218,31 @@ export function Profile() {
       minute: '2-digit'
     });
   };
+
+  // Calcular fuerza de la contraseña
+  const getPasswordStrength = () => {
+    const { minLength, hasUpperCase, hasLowerCase, hasNumber, hasSpecialChar } = passwordValidation;
+    let strength = 0;
+    
+    if (minLength) strength += 20;
+    if (hasUpperCase) strength += 20;
+    if (hasLowerCase) strength += 20;
+    if (hasNumber) strength += 20;
+    if (hasSpecialChar) strength += 20;
+
+    return strength;
+  };
+
+  const getStrengthLabel = (strength) => {
+    if (strength === 0) return { label: '', color: '' };
+    if (strength <= 40) return { label: 'Débil', color: '#dc2626' };
+    if (strength <= 60) return { label: 'Media', color: '#f59e0b' };
+    if (strength <= 80) return { label: 'Buena', color: '#3b82f6' };
+    return { label: 'Excelente', color: '#10b981' };
+  };
+
+  const passwordStrength = getPasswordStrength();
+  const strengthInfo = getStrengthLabel(passwordStrength);
 
   if (loading) {
     return (
@@ -346,69 +415,173 @@ export function Profile() {
         </SecurityCard>
       </ContentGrid>
 
-      {/* Modal de cambio de contraseña */}
+      {/* Modal de cambio de contraseña mejorado */}
       {showPasswordModal && (
-        <ModalOverlay onClick={() => setShowPasswordModal(false)}>
+        <ModalOverlay onClick={closePasswordModal}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
             <ModalHeader>
-              <ModalTitle>
-                <FaKey />
-                Cambiar Contraseña
-              </ModalTitle>
-              <CloseButton onClick={() => setShowPasswordModal(false)}>
+              <ModalTitleSection>
+                <ModalIconWrapper>
+                  <FaLock />
+                </ModalIconWrapper>
+                <div>
+                  <ModalTitle>Cambiar Contraseña</ModalTitle>
+                  <ModalSubtitle>Actualiza tu contraseña para mantener tu cuenta segura</ModalSubtitle>
+                </div>
+              </ModalTitleSection>
+              <CloseButton onClick={closePasswordModal}>
                 &times;
               </CloseButton>
             </ModalHeader>
 
-            <Form onSubmit={handlePasswordSubmit}>
-              <FormGroup>
-                <Label>Contraseña Actual</Label>
-                <Input
-                  type="password"
-                  name="current_password"
-                  value={passwordData.current_password}
-                  onChange={handlePasswordChange}
-                  placeholder="Ingresa tu contraseña actual"
-                  required
-                />
-              </FormGroup>
+            <ModalBody>
+              <Form onSubmit={handlePasswordSubmit}>
+                {/* Contraseña actual */}
+                <FormGroup>
+                  <Label>
+                    <FaKey />
+                    Contraseña Actual
+                  </Label>
+                  <PasswordInputWrapper>
+                    <PasswordInput
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      name="current_password"
+                      value={passwordData.current_password}
+                      onChange={handlePasswordChange}
+                      placeholder="Ingresa tu contraseña actual"
+                      required
+                    />
+                    <PasswordToggle
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    >
+                      {showCurrentPassword ? <FaEyeSlash /> : <FaEye />}
+                    </PasswordToggle>
+                  </PasswordInputWrapper>
+                </FormGroup>
 
-              <FormGroup>
-                <Label>Nueva Contraseña</Label>
-                <Input
-                  type="password"
-                  name="new_password"
-                  value={passwordData.new_password}
-                  onChange={handlePasswordChange}
-                  placeholder="Mínimo 6 caracteres"
-                  minLength={6}
-                  required
-                />
-              </FormGroup>
+                <Divider />
 
-              <FormGroup>
-                <Label>Confirmar Nueva Contraseña</Label>
-                <Input
-                  type="password"
-                  name="confirm_password"
-                  value={passwordData.confirm_password}
-                  onChange={handlePasswordChange}
-                  placeholder="Repite la nueva contraseña"
-                  minLength={6}
-                  required
-                />
-              </FormGroup>
+                {/* Nueva contraseña */}
+                <FormGroup>
+                  <Label>
+                    <FaKey />
+                    Nueva Contraseña
+                  </Label>
+                  <PasswordInputWrapper>
+                    <PasswordInput
+                      type={showNewPassword ? 'text' : 'password'}
+                      name="new_password"
+                      value={passwordData.new_password}
+                      onChange={handlePasswordChange}
+                      placeholder="Mínimo 6 caracteres"
+                      minLength={6}
+                      required
+                    />
+                    <PasswordToggle
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                    </PasswordToggle>
+                  </PasswordInputWrapper>
 
-              <ModalActions>
-                <ButtonSecondary type="button" onClick={() => setShowPasswordModal(false)}>
-                  Cancelar
-                </ButtonSecondary>
-                <ButtonPrimary type="submit" disabled={saving}>
-                  <FaKey />
-                  {saving ? 'Cambiando...' : 'Cambiar Contraseña'}
-                </ButtonPrimary>
-              </ModalActions>
-            </Form>
+                  {/* Indicador de fuerza de contraseña */}
+                  {passwordData.new_password && (
+                    <PasswordStrengthSection>
+                      <PasswordStrengthBar>
+                        <PasswordStrengthFill 
+                          strength={passwordStrength}
+                          color={strengthInfo.color}
+                        />
+                      </PasswordStrengthBar>
+                      {strengthInfo.label && (
+                        <PasswordStrengthLabel color={strengthInfo.color}>
+                          {strengthInfo.label}
+                        </PasswordStrengthLabel>
+                      )}
+                    </PasswordStrengthSection>
+                  )}
+                </FormGroup>
+
+                {/* Confirmar nueva contraseña */}
+                <FormGroup>
+                  <Label>
+                    <FaCheck />
+                    Confirmar Nueva Contraseña
+                  </Label>
+                  <PasswordInputWrapper>
+                    <PasswordInput
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirm_password"
+                      value={passwordData.confirm_password}
+                      onChange={handlePasswordChange}
+                      placeholder="Repite la nueva contraseña"
+                      minLength={6}
+                      required
+                      $hasError={passwordData.confirm_password && !passwordValidation.passwordsMatch}
+                      $hasSuccess={passwordData.confirm_password && passwordValidation.passwordsMatch}
+                    />
+                    <PasswordToggle
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                    </PasswordToggle>
+                    {passwordData.confirm_password && (
+                      <ValidationIcon $isValid={passwordValidation.passwordsMatch}>
+                        {passwordValidation.passwordsMatch ? <FaCheck /> : <FaTimes />}
+                      </ValidationIcon>
+                    )}
+                  </PasswordInputWrapper>
+                  {passwordData.confirm_password && !passwordValidation.passwordsMatch && (
+                    <ErrorText>Las contraseñas no coinciden</ErrorText>
+                  )}
+                </FormGroup>
+
+                {/* Requisitos de contraseña */}
+                {passwordData.new_password && (
+                  <RequirementsSection>
+                    <RequirementsTitle>Requisitos de contraseña:</RequirementsTitle>
+                    <RequirementsList>
+                      <RequirementItem $met={passwordValidation.minLength}>
+                        {passwordValidation.minLength ? <FaCheck /> : <FaTimes />}
+                        Al menos 6 caracteres
+                      </RequirementItem>
+                      <RequirementItem $met={passwordValidation.hasUpperCase}>
+                        {passwordValidation.hasUpperCase ? <FaCheck /> : <FaTimes />}
+                        Una letra mayúscula
+                      </RequirementItem>
+                      <RequirementItem $met={passwordValidation.hasLowerCase}>
+                        {passwordValidation.hasLowerCase ? <FaCheck /> : <FaTimes />}
+                        Una letra minúscula
+                      </RequirementItem>
+                      <RequirementItem $met={passwordValidation.hasNumber}>
+                        {passwordValidation.hasNumber ? <FaCheck /> : <FaTimes />}
+                        Un número
+                      </RequirementItem>
+                      <RequirementItem $met={passwordValidation.hasSpecialChar}>
+                        {passwordValidation.hasSpecialChar ? <FaCheck /> : <FaTimes />}
+                        Un carácter especial (!@#$%^&*)
+                      </RequirementItem>
+                    </RequirementsList>
+                  </RequirementsSection>
+                )}
+
+                <ModalActions>
+                  <ButtonSecondary type="button" onClick={closePasswordModal}>
+                    Cancelar
+                  </ButtonSecondary>
+                  <ButtonPrimary 
+                    type="submit" 
+                    disabled={saving || !passwordValidation.minLength || !passwordValidation.passwordsMatch}
+                  >
+                    <FaKey />
+                    {saving ? 'Cambiando...' : 'Cambiar Contraseña'}
+                  </ButtonPrimary>
+                </ModalActions>
+              </Form>
+            </ModalBody>
           </ModalContent>
         </ModalOverlay>
       )}
@@ -416,44 +589,77 @@ export function Profile() {
   );
 }
 
-// Styled Components
+// Animaciones
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
+
+const slideIn = keyframes`
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+`;
+
+const progressAnimation = keyframes`
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--target-width);
+  }
+`;
+
+// Styled Components - REDUCIDOS 20%
 const Container = styled.div`
-  padding: 2rem;
+  padding: 1.6rem;
   width: 100%;
   min-height: 100px;
 `;
 
 const Header = styled.div`
-  margin-bottom: 2rem;
+  margin-bottom: 1.6rem;
 `;
 
 const Title = styled.h1`
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: ${(props) => props.theme.text};
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
   margin: 0;
 
   svg {
     color: #d97706;
-    font-size: 2.25rem;
+    font-size: 1.8rem;
   }
 `;
 
 const Subtitle = styled.p`
   color: ${(props) => props.theme.text};
   opacity: 0.7;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
   margin-bottom: 0;
+  font-size: 0.88rem;
 `;
 
 const ContentGrid = styled.div`
   display: grid;
-  grid-template-columns: 350px 1fr;
+  grid-template-columns: 280px 1fr;
   grid-template-rows: auto auto;
-  gap: 1.5rem;
+  gap: 1.2rem;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
@@ -463,8 +669,8 @@ const ContentGrid = styled.div`
 const ProfileCard = styled.div`
   background: ${(props) => props.theme.bg};
   border: 1px solid ${(props) => props.theme.bg3};
-  border-radius: 16px;
-  padding: 2rem;
+  border-radius: 13px;
+  padding: 1.6rem;
   grid-row: span 2;
 
   @media (max-width: 900px) {
@@ -477,22 +683,22 @@ const CardHeader = styled.div`
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding-bottom: 1.5rem;
+  padding-bottom: 1.2rem;
   border-bottom: 1px solid ${(props) => props.theme.bg3};
 `;
 
 const Avatar = styled.div`
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   background: linear-gradient(135deg, #d97706, #92400e);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
   box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3);
 `;
 
@@ -500,11 +706,11 @@ const UserMainInfo = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 `;
 
 const UserName = styled.h2`
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: ${(props) => props.theme.text};
   margin: 0;
@@ -513,53 +719,53 @@ const UserName = styled.h2`
 const UserEmail = styled.span`
   color: ${(props) => props.theme.text};
   opacity: 0.7;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 `;
 
 const RolBadge = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 9999px;
   background: ${(props) => props.color}20;
   color: ${(props) => props.color};
-  font-size: 0.875rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
 
   svg {
-    font-size: 0.75rem;
+    font-size: 0.6rem;
   }
 `;
 
 const RolBadgeSmall = styled.span`
   display: inline-block;
-  padding: 0.25rem 0.75rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 9999px;
   background: ${(props) => props.color}20;
   color: ${(props) => props.color};
-  font-size: 0.75rem;
+  font-size: 0.6rem;
   font-weight: 600;
 `;
 
 const StatusSection = styled.div`
-  padding-top: 1.5rem;
+  padding-top: 1.2rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.8rem;
 `;
 
 const StatusItem = styled.div`
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.8rem;
 `;
 
 const StatusIcon = styled.div`
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: ${(props) => props.theme.bg3};
   display: flex;
   align-items: center;
@@ -567,14 +773,14 @@ const StatusIcon = styled.div`
   color: ${(props) => props.theme.text};
 
   .dot {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: ${(props) => (props.$active ? '#10b981' : '#6b7280')};
   }
 
   svg {
-    font-size: 1rem;
+    font-size: 0.8rem;
     opacity: 0.7;
   }
 `;
@@ -584,13 +790,13 @@ const StatusText = styled.div`
   flex-direction: column;
 
   .label {
-    font-size: 0.75rem;
+    font-size: 0.6rem;
     color: ${(props) => props.theme.text};
     opacity: 0.6;
   }
 
   .value {
-    font-size: 0.875rem;
+    font-size: 0.7rem;
     color: ${(props) => props.theme.text};
     font-weight: 500;
   }
@@ -599,8 +805,8 @@ const StatusText = styled.div`
 const FormCard = styled.div`
   background: ${(props) => props.theme.bg};
   border: 1px solid ${(props) => props.theme.bg3};
-  border-radius: 16px;
-  padding: 1.5rem;
+  border-radius: 13px;
+  padding: 1.2rem;
 `;
 
 const SecurityCard = styled(FormCard)``;
@@ -609,18 +815,18 @@ const FormHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
   border-bottom: 1px solid ${(props) => props.theme.bg3};
 `;
 
 const FormTitle = styled.h3`
-  font-size: 1.125rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: ${(props) => props.theme.text};
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   margin: 0;
 
   svg {
@@ -631,13 +837,13 @@ const FormTitle = styled.h3`
 const EditButton = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
   background: ${(props) => props.theme.bg3};
   color: ${(props) => props.theme.text};
   border: none;
-  border-radius: 8px;
-  font-size: 0.875rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -647,10 +853,12 @@ const EditButton = styled.button`
   }
 `;
 
-const Form = styled.form``;
+const Form = styled.form`
+  padding: 0 0.8rem;
+`;
 
 const FormGroup = styled.div`
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 
   &:last-child {
     margin-bottom: 0;
@@ -660,26 +868,26 @@ const FormGroup = styled.div`
 const Label = styled.label`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
   color: ${(props) => props.theme.text};
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 
   svg {
-    font-size: 0.875rem;
+    font-size: 0.7rem;
     opacity: 0.7;
   }
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 0.8rem;
   background: ${(props) => props.theme.bg};
   color: ${(props) => props.theme.text};
   border: 1px solid ${(props) => props.theme.bg3};
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
   transition: border-color 0.2s;
 
   &:focus {
@@ -694,37 +902,38 @@ const Input = styled.input`
 `;
 
 const StaticValue = styled.div`
-  padding: 0.75rem 0;
+  padding: 0.6rem 0;
   color: ${(props) => props.theme.text};
-  font-size: 1rem;
+  font-size: 0.88rem;
 `;
 
 const HelpText = styled.small`
   display: block;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
   color: ${(props) => props.theme.text};
   opacity: 0.6;
-  font-size: 0.75rem;
+  font-size: 0.6rem;
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 0.8rem;
   justify-content: flex-end;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
   border-top: 1px solid ${(props) => props.theme.bg3};
 `;
 
 const ButtonPrimary = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  gap: 0.4rem;
+  padding: 0.6rem 1.2rem;
   background: linear-gradient(135deg, #d97706, #92400e);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -735,17 +944,19 @@ const ButtonPrimary = styled.button`
   }
 
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
 `;
 
 const ButtonSecondary = styled.button`
-  padding: 0.75rem 1.5rem;
+  padding: 0.6rem 1.2rem;
   background: ${(props) => props.theme.bg3};
   color: ${(props) => props.theme.text};
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -758,12 +969,13 @@ const ButtonSecondary = styled.button`
 const ButtonOutline = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  gap: 0.4rem;
+  padding: 0.6rem 1.2rem;
   background: transparent;
   color: #d97706;
   border: 1px solid #d97706;
-  border-radius: 8px;
+  border-radius: 6px;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -773,21 +985,23 @@ const ButtonOutline = styled.button`
   }
 `;
 
-const SecurityContent = styled.div``;
+const SecurityContent = styled.div`
+  padding: 0 0.8rem;
+`;
 
 const SecurityItem = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.8rem;
 `;
 
 const SecurityInfo = styled.div`
   h4 {
-    margin: 0 0 0.25rem 0;
+    margin: 0 0 0.2rem 0;
     color: ${(props) => props.theme.text};
-    font-size: 1rem;
+    font-size: 0.88rem;
     font-weight: 600;
   }
 
@@ -795,93 +1009,284 @@ const SecurityInfo = styled.div`
     margin: 0;
     color: ${(props) => props.theme.text};
     opacity: 0.6;
-    font-size: 0.875rem;
+    font-size: 0.7rem;
   }
 `;
 
 const LoadingSpinner = styled.div`
   text-align: center;
-  padding: 3rem;
-  font-size: 1.25rem;
+  padding: 2.4rem;
+  font-size: 1rem;
   color: ${(props) => props.theme.text};
 `;
 
 const ErrorMessage = styled.div`
   text-align: center;
-  padding: 3rem;
-  font-size: 1.25rem;
+  padding: 2.4rem;
+  font-size: 1rem;
   color: #dc2626;
 `;
 
+// Modal mejorado
 const ModalOverlay = styled.div`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  padding: 1rem;
+  padding: 0.8rem;
+  backdrop-filter: blur(4px);
+  animation: ${fadeIn} 0.2s ease-out;
 `;
 
 const ModalContent = styled.div`
   background: ${(props) => props.theme.bg};
   border-radius: 16px;
-  max-width: 450px;
+  max-width: 480px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+  animation: ${slideIn} 0.3s ease-out;
+  border: 1px solid ${(props) => props.theme.bg3};
 `;
 
 const ModalHeader = styled.div`
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 1.5rem;
   border-bottom: 1px solid ${(props) => props.theme.bg3};
+  background: ${(props) => props.theme.bg2};
+`;
+
+const ModalTitleSection = styled.div`
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+`;
+
+const ModalIconWrapper = styled.div`
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #d97706, #92400e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+  flex-shrink: 0;
 `;
 
 const ModalTitle = styled.h2`
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: ${(props) => props.theme.text};
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
+  margin: 0 0 0.3rem 0;
+`;
 
-  svg {
-    color: #d97706;
-  }
+const ModalSubtitle = styled.p`
+  font-size: 0.75rem;
+  color: ${(props) => props.theme.text};
+  opacity: 0.7;
+  margin: 0;
+  line-height: 1.4;
 `;
 
 const CloseButton = styled.button`
   background: none;
   border: none;
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   color: ${(props) => props.theme.text};
   cursor: pointer;
   line-height: 1;
   padding: 0;
   opacity: 0.5;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
 
   &:hover {
     opacity: 1;
+    background: ${(props) => props.theme.bg3};
     color: #dc2626;
+  }
+`;
+
+const ModalBody = styled.div`
+  padding: 1.5rem;
+`;
+
+const PasswordInputWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
+const PasswordInput = styled.input`
+  width: 100%;
+  padding: 0.7rem 2.8rem 0.7rem 0.8rem;
+  background: ${(props) => props.theme.bg};
+  color: ${(props) => props.theme.text};
+  border: 1px solid ${(props) => 
+    props.$hasError ? '#dc2626' : 
+    props.$hasSuccess ? '#10b981' : 
+    props.theme.bg3};
+  border-radius: 8px;
+  font-size: 0.88rem;
+  transition: all 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: ${(props) => 
+      props.$hasError ? '#dc2626' : 
+      props.$hasSuccess ? '#10b981' : 
+      '#d97706'};
+    box-shadow: 0 0 0 3px ${(props) => 
+      props.$hasError ? '#dc262615' : 
+      props.$hasSuccess ? '#10b98115' : 
+      '#d9770615'};
+  }
+
+  &::placeholder {
+    color: ${(props) => props.theme.text};
+    opacity: 0.5;
+  }
+`;
+
+const PasswordToggle = styled.button`
+  position: absolute;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  color: ${(props) => props.theme.text};
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+
+  &:hover {
+    opacity: 1;
+    background: ${(props) => props.theme.bg3};
+  }
+
+  svg {
+    font-size: 1rem;
+  }
+`;
+
+const ValidationIcon = styled.div`
+  position: absolute;
+  right: 2.5rem;
+  color: ${(props) => props.$isValid ? '#10b981' : '#dc2626'};
+  font-size: 0.9rem;
+  pointer-events: none;
+  animation: ${fadeIn} 0.2s ease-out;
+`;
+
+const Divider = styled.div`
+  height: 1px;
+  background: ${(props) => props.theme.bg3};
+  margin: 1.2rem 0;
+`;
+
+const PasswordStrengthSection = styled.div`
+  margin-top: 0.6rem;
+  animation: ${fadeIn} 0.3s ease-out;
+`;
+
+const PasswordStrengthBar = styled.div`
+  width: 100%;
+  height: 6px;
+  background: ${(props) => props.theme.bg3};
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+`;
+
+const PasswordStrengthFill = styled.div`
+  height: 100%;
+  --target-width: ${(props) => props.strength}%;
+  width: var(--target-width);
+  background: ${(props) => props.color};
+  border-radius: 3px;
+  transition: all 0.3s ease;
+  animation: ${progressAnimation} 0.5s ease-out;
+`;
+
+const PasswordStrengthLabel = styled.span`
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: ${(props) => props.color};
+`;
+
+const ErrorText = styled.span`
+  display: block;
+  margin-top: 0.4rem;
+  color: #dc2626;
+  font-size: 0.7rem;
+  animation: ${fadeIn} 0.2s ease-out;
+`;
+
+const RequirementsSection = styled.div`
+  background: ${(props) => props.theme.bg2};
+  border: 1px solid ${(props) => props.theme.bg3};
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  animation: ${fadeIn} 0.3s ease-out;
+`;
+
+const RequirementsTitle = styled.div`
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: ${(props) => props.theme.text};
+  margin-bottom: 0.6rem;
+  opacity: 0.8;
+`;
+
+const RequirementsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+`;
+
+const RequirementItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: ${(props) => props.$met ? '#10b981' : props.theme.text};
+  opacity: ${(props) => props.$met ? 1 : 0.6};
+  transition: all 0.2s;
+
+  svg {
+    font-size: 0.7rem;
+    color: ${(props) => props.$met ? '#10b981' : '#6b7280'};
   }
 `;
 
 const ModalActions = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 0.8rem;
   justify-content: flex-end;
   margin-top: 1.5rem;
-  padding-top: 1.5rem;
+  padding-top: 1.2rem;
   border-top: 1px solid ${(props) => props.theme.bg3};
 `;
 

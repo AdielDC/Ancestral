@@ -10,7 +10,8 @@ import {
   FaUserCheck, 
   FaUserTimes,
   FaSearch,
-  FaUsers
+  FaUsers,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import { MdAdminPanelSettings } from 'react-icons/md';
 
@@ -113,15 +114,15 @@ export function Configuracion() {
     try {
       if (modalType === 'crear') {
         await usuarioService.crearUsuario(formData);
-        toast.success('Usuario creado exitosamente');
+        toast.success('✅ Usuario creado exitosamente');
       } else if (modalType === 'editar') {
         await usuarioService.actualizarUsuario(usuarioSeleccionado.id, formData);
-        toast.success('Usuario actualizado exitosamente');
+        toast.success('✅ Usuario actualizado exitosamente');
       } else if (modalType === 'password') {
         await usuarioService.cambiarPassword(usuarioSeleccionado.id, {
           new_password: formData.new_password
         });
-        toast.success('Contraseña actualizada exitosamente');
+        toast.success('✅ Contraseña actualizada exitosamente');
       }
 
       cerrarModal();
@@ -131,42 +132,130 @@ export function Configuracion() {
     }
   };
 
-  const handleDesactivar = async (usuario) => {
-    if (!window.confirm(`¿Estás seguro de desactivar al usuario ${usuario.nombre}?`)) {
-      return;
-    }
-
-    try {
-      await usuarioService.desactivarUsuario(usuario.id);
-      toast.success('Usuario desactivado exitosamente');
-      cargarDatos();
-    } catch (error) {
-      toast.error(error.message || 'Error al desactivar usuario');
-    }
+  // Confirmación con Toast para desactivar usuario
+  const handleDesactivar = (usuario) => {
+    toast((t) => (
+      <ConfirmToastContainer>
+        <ConfirmToastHeader>
+          <ConfirmToastIcon warning>
+            <FaUserTimes />
+          </ConfirmToastIcon>
+          <div>
+            <ConfirmToastTitle>¿Desactivar usuario?</ConfirmToastTitle>
+            <ConfirmToastMessage>
+              <strong>{usuario.nombre}</strong> no podrá acceder al sistema
+            </ConfirmToastMessage>
+          </div>
+        </ConfirmToastHeader>
+        <ConfirmToastActions>
+          <ConfirmButton 
+            cancel 
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Cancelar
+          </ConfirmButton>
+          <ConfirmButton
+            warning
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await usuarioService.desactivarUsuario(usuario.id);
+                toast.success('✅ Usuario desactivado exitosamente');
+                cargarDatos();
+              } catch (error) {
+                toast.error(error.message || 'Error al desactivar usuario');
+              }
+            }}
+          >
+            <FaUserTimes />
+            Desactivar
+          </ConfirmButton>
+        </ConfirmToastActions>
+      </ConfirmToastContainer>
+    ), {
+      duration: 8000,
+      position: 'top-center',
+      style: {
+        background: '#1f2937',
+        color: '#f9fafb',
+        padding: '0',
+        borderRadius: '12px',
+        border: '1px solid #374151',
+        minWidth: '400px',
+        maxWidth: '500px',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)',
+      }
+    });
   };
 
   const handleActivar = async (usuario) => {
     try {
       await usuarioService.activarUsuario(usuario.id);
-      toast.success('Usuario activado exitosamente');
+      toast.success(`✅ ${usuario.nombre} activado exitosamente`);
       cargarDatos();
     } catch (error) {
       toast.error(error.message || 'Error al activar usuario');
     }
   };
 
-  const handleEliminar = async (usuario) => {
-    if (!window.confirm(`¿Estás seguro de ELIMINAR PERMANENTEMENTE al usuario ${usuario.nombre}? Esta acción no se puede deshacer.`)) {
-      return;
-    }
-
-    try {
-      await usuarioService.eliminarUsuario(usuario.id);
-      toast.success('Usuario eliminado exitosamente');
-      cargarDatos();
-    } catch (error) {
-      toast.error(error.message || 'Error al eliminar usuario');
-    }
+  // Confirmación con Toast para eliminar usuario
+  const handleEliminar = (usuario) => {
+    toast((t) => (
+      <ConfirmToastContainer>
+        <ConfirmToastHeader>
+          <ConfirmToastIcon danger>
+            <FaExclamationTriangle />
+          </ConfirmToastIcon>
+          <div>
+            <ConfirmToastTitle>⚠️ Eliminar permanentemente</ConfirmToastTitle>
+            <ConfirmToastMessage>
+              Se eliminará a <strong>{usuario.nombre}</strong>
+              <br />
+              <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                Esta acción no se puede deshacer
+              </span>
+            </ConfirmToastMessage>
+          </div>
+        </ConfirmToastHeader>
+        <ConfirmToastActions>
+          <ConfirmButton 
+            cancel 
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Cancelar
+          </ConfirmButton>
+          <ConfirmButton
+            danger
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await usuarioService.eliminarUsuario(usuario.id);
+                toast.success('✅ Usuario eliminado exitosamente');
+                cargarDatos();
+              } catch (error) {
+                toast.error(error.message || 'Error al eliminar usuario');
+              }
+            }}
+          >
+            <FaTrash />
+            Eliminar
+          </ConfirmButton>
+        </ConfirmToastActions>
+      </ConfirmToastContainer>
+    ), {
+      duration: 10000,
+      position: 'top-center',
+      style: {
+        background: '#1f2937',
+        color: '#f9fafb',
+        padding: '0',
+        borderRadius: '12px',
+        border: '1px solid #dc2626',
+        minWidth: '400px',
+        maxWidth: '500px',
+        boxShadow: '0 20px 25px -5px rgba(220, 38, 38, 0.3), 0 10px 10px -5px rgba(220, 38, 38, 0.2)',
+      }
+    });
   };
 
   const getRolBadgeColor = (rol) => {
@@ -481,9 +570,108 @@ export function Configuracion() {
   );
 }
 
-// Styled Components
+// Styled Components para Toast de Confirmación
+const ConfirmToastContainer = styled.div`
+  padding: 1.2rem;
+  width: 100%;
+  background: transparent;
+`;
+
+const ConfirmToastHeader = styled.div`
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+`;
+
+const ConfirmToastIcon = styled.div`
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  background: ${props => 
+    props.danger ? 'rgba(220, 38, 38, 0.15)' : 
+    props.warning ? 'rgba(245, 158, 11, 0.15)' : 
+    'rgba(59, 130, 246, 0.15)'};
+  color: ${props => 
+    props.danger ? '#f87171' : 
+    props.warning ? '#fbbf24' : 
+    '#60a5fa'};
+`;
+
+const ConfirmToastTitle = styled.div`
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.4rem;
+  color: #f9fafb;
+`;
+
+const ConfirmToastMessage = styled.div`
+  font-size: 0.875rem;
+  color: #d1d5db;
+  line-height: 1.5;
+
+  strong {
+    font-weight: 600;
+    color: #f9fafb;
+  }
+`;
+
+const ConfirmToastActions = styled.div`
+  display: flex;
+  gap: 0.7rem;
+  justify-content: flex-end;
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #374151;
+`;
+
+const ConfirmButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  background: ${props => 
+    props.cancel ? '#4b5563' : 
+    props.danger ? '#dc2626' : 
+    props.warning ? '#f59e0b' : 
+    '#3b82f6'};
+  
+  color: white;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: ${props => 
+      props.cancel ? '#6b7280' : 
+      props.danger ? '#ef4444' : 
+      props.warning ? '#fbbf24' : 
+      '#60a5fa'};
+    box-shadow: 0 4px 12px ${props => 
+      props.cancel ? 'rgba(75, 85, 99, 0.4)' : 
+      props.danger ? 'rgba(220, 38, 38, 0.4)' : 
+      props.warning ? 'rgba(245, 158, 11, 0.4)' : 
+      'rgba(59, 130, 246, 0.4)'};
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+// Styled Components - REDUCIDOS 20%
 const Container = styled.div`
-  padding: 2rem;
+  padding: 1.6rem;
   width: 100%;
   min-height: 100px;
 `;
@@ -492,51 +680,52 @@ const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 2rem;
+  margin-bottom: 1.6rem;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.8rem;
 `;
 
 const HeaderLeft = styled.div``;
 
 const Title = styled.h1`
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: ${(props) => props.theme.text};
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
   margin: 0;
 
   svg {
     color: #d97706;
-    font-size: 2.25rem;
+    font-size: 1.8rem;
   }
 `;
 
 const Subtitle = styled.p`
   color: ${(props) => props.theme.text};
   opacity: 0.7;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
   margin-bottom: 0;
+  font-size: 0.88rem;
 `;
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 1.6rem;
 `;
 
 const StatCard = styled.div`
   background: ${(props) => props.theme.bg};
   border: 1px solid ${(props) => props.theme.bg3};
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 10px;
+  padding: 1.2rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  border-left: 4px solid ${(props) => props.color};
+  gap: 0.8rem;
+  border-left: 3px solid ${(props) => props.color};
   transition: transform 0.2s, box-shadow 0.2s;
 
   &:hover {
@@ -546,21 +735,21 @@ const StatCard = styled.div`
 `;
 
 const StatIcon = styled.div`
-  width: 50px;
-  height: 50px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background: ${(props) => props.theme.bg3};
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   color: ${(props) => props.theme.text};
 `;
 
 const StatInfo = styled.div``;
 
 const StatNumber = styled.div`
-  font-size: 1.75rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: ${(props) => props.theme.text};
 `;
@@ -568,13 +757,13 @@ const StatNumber = styled.div`
 const StatLabel = styled.div`
   color: ${(props) => props.theme.text};
   opacity: 0.7;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 `;
 
 const FiltersContainer = styled.div`
   display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.8rem;
+  margin-bottom: 1.2rem;
   flex-wrap: wrap;
   align-items: center;
 `;
@@ -582,19 +771,19 @@ const FiltersContainer = styled.div`
 const SearchForm = styled.form`
   display: flex;
   flex: 1;
-  min-width: 250px;
-  max-width: 400px;
+  min-width: 200px;
+  max-width: 320px;
 `;
 
 const SearchInput = styled.input`
   flex: 1;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 0.8rem;
   background: ${(props) => props.theme.bg};
   color: ${(props) => props.theme.text};
   border: 1px solid ${(props) => props.theme.bg3};
   border-right: none;
-  border-radius: 8px 0 0 8px;
-  font-size: 0.875rem;
+  border-radius: 6px 0 0 6px;
+  font-size: 0.7rem;
 
   &:focus {
     outline: none;
@@ -608,13 +797,14 @@ const SearchInput = styled.input`
 `;
 
 const SearchButton = styled.button`
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 0.8rem;
   background: #d97706;
   color: white;
   border: none;
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 6px 6px 0;
   cursor: pointer;
   transition: background 0.2s;
+  font-size: 0.88rem;
 
   &:hover {
     background: #b45309;
@@ -624,19 +814,19 @@ const SearchButton = styled.button`
 const FilterGroup = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 `;
 
 const FilterLabel = styled.label`
   color: ${(props) => props.theme.text};
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 `;
 
 const TableContainer = styled.div`
   background: ${(props) => props.theme.bg};
   border: 1px solid ${(props) => props.theme.bg3};
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   overflow-x: auto;
   width: 100%;
@@ -645,17 +835,17 @@ const TableContainer = styled.div`
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
-  min-width: 800px;
+  min-width: 640px;
   table-layout: auto;
 `;
 
 const Th = styled.th`
   background: ${(props) => props.theme.bg3};
   color: ${(props) => props.theme.text};
-  padding: 1rem;
+  padding: 0.8rem;
   text-align: left;
   font-weight: 600;
-  font-size: 0.75rem;
+  font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 `;
@@ -673,9 +863,9 @@ const Tr = styled.tr`
 `;
 
 const Td = styled.td`
-  padding: 1rem;
+  padding: 0.8rem;
   color: ${(props) => props.theme.text};
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 `;
 
 const UserName = styled.span`
@@ -684,29 +874,29 @@ const UserName = styled.span`
 
 const Badge = styled.span`
   display: inline-block;
-  padding: 0.25rem 0.75rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 9999px;
   background: ${(props) => props.color}20;
   color: ${(props) => props.color};
-  font-size: 0.75rem;
+  font-size: 0.6rem;
   font-weight: 600;
 `;
 
 const StatusBadge = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.75rem;
+  gap: 0.2rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 9999px;
   background: ${(props) => (props.activo ? '#10b98120' : '#6b728020')};
   color: ${(props) => (props.activo ? '#10b981' : '#6b7280')};
-  font-size: 0.75rem;
+  font-size: 0.6rem;
   font-weight: 600;
 
   &::before {
     content: '';
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: ${(props) => (props.activo ? '#10b981' : '#6b7280')};
   }
@@ -714,11 +904,11 @@ const StatusBadge = styled.span`
 
 const ActionsContainer = styled.div`
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
 `;
 
 const ActionButton = styled.button`
-  padding: 0.5rem;
+  padding: 0.4rem;
   background: ${(props) => 
     props.danger ? '#dc262615' : 
     props.warning ? '#f59e0b15' :
@@ -730,12 +920,13 @@ const ActionButton = styled.button`
     props.success ? '#10b981' : 
     props.theme.text};
   border: none;
-  border-radius: 6px;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 0.88rem;
 
   &:hover {
     background: ${(props) => 
@@ -750,13 +941,14 @@ const ActionButton = styled.button`
 const ButtonPrimary = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  gap: 0.4rem;
+  padding: 0.6rem 1.2rem;
   background: linear-gradient(135deg, #d97706, #92400e);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 600;
+  font-size: 0.88rem;
   cursor: pointer;
   transition: all 0.2s;
 
@@ -767,12 +959,13 @@ const ButtonPrimary = styled.button`
 `;
 
 const ButtonSecondary = styled.button`
-  padding: 0.75rem 1.5rem;
+  padding: 0.6rem 1.2rem;
   background: ${(props) => props.theme.bg3};
   color: ${(props) => props.theme.text};
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 600;
+  font-size: 0.88rem;
   cursor: pointer;
   transition: all 0.2s;
 
@@ -782,13 +975,13 @@ const ButtonSecondary = styled.button`
 `;
 
 const Select = styled.select`
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.8rem;
   background: ${(props) => props.theme.bg};
   color: ${(props) => props.theme.text};
   border: 1px solid ${(props) => props.theme.bg3};
-  border-radius: 6px;
+  border-radius: 5px;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 
   &:focus {
     outline: none;
@@ -798,29 +991,29 @@ const Select = styled.select`
 
 const EmptyState = styled.div`
   text-align: center;
-  padding: 3rem;
+  padding: 2.4rem;
   color: ${(props) => props.theme.text};
   opacity: 0.5;
-  font-size: 1rem;
+  font-size: 0.88rem;
 `;
 
 const LoadingSpinner = styled.div`
   text-align: center;
-  padding: 3rem;
-  font-size: 1.25rem;
+  padding: 2.4rem;
+  font-size: 1rem;
   color: ${(props) => props.theme.text};
 `;
 
 const PaginationContainer = styled.div`
   display: flex;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 1.2rem;
 `;
 
 const PaginationInfo = styled.span`
   color: ${(props) => props.theme.text};
   opacity: 0.7;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 `;
 
 const ModalOverlay = styled.div`
@@ -834,13 +1027,13 @@ const ModalOverlay = styled.div`
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  padding: 1rem;
+  padding: 0.8rem;
 `;
 
 const ModalContent = styled.div`
   background: ${(props) => props.theme.bg};
-  border-radius: 12px;
-  max-width: 500px;
+  border-radius: 10px;
+  max-width: 400px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
@@ -851,12 +1044,12 @@ const ModalHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  padding: 1.2rem;
   border-bottom: 1px solid ${(props) => props.theme.bg3};
 `;
 
 const ModalTitle = styled.h2`
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 700;
   color: ${(props) => props.theme.text};
   margin: 0;
@@ -865,7 +1058,7 @@ const ModalTitle = styled.h2`
 const CloseButton = styled.button`
   background: none;
   border: none;
-  font-size: 1.75rem;
+  font-size: 1.4rem;
   color: ${(props) => props.theme.text};
   cursor: pointer;
   line-height: 1;
@@ -880,29 +1073,29 @@ const CloseButton = styled.button`
 `;
 
 const Form = styled.form`
-  padding: 1.5rem;
+  padding: 1.2rem;
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 `;
 
 const Label = styled.label`
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   color: ${(props) => props.theme.text};
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 0.8rem;
   background: ${(props) => props.theme.bg};
   color: ${(props) => props.theme.text};
   border: 1px solid ${(props) => props.theme.bg3};
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
   transition: border-color 0.2s;
 
   &:focus {
@@ -918,18 +1111,18 @@ const Input = styled.input`
 
 const HelpText = styled.small`
   display: block;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
   color: ${(props) => props.theme.text};
   opacity: 0.7;
-  font-size: 0.75rem;
+  font-size: 0.6rem;
 `;
 
 const ModalActions = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 0.8rem;
   justify-content: flex-end;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
   border-top: 1px solid ${(props) => props.theme.bg3};
 `;
 
