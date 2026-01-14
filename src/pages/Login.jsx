@@ -4,6 +4,7 @@ import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import authService from "../services/authService";
 import logo from "../assets/logo.png";
+import { FaEye, FaEyeSlash } from "react-icons/fa"; // Necesitarás instalar react-icons
 
 export function Login() {
   const navigate = useNavigate();
@@ -12,12 +13,17 @@ export function Login() {
     password: ""
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // 👁️ Estado para mostrar/ocultar contraseña
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(prev => !prev);
   };
 
   const handleSubmit = async (e) => {
@@ -75,14 +81,24 @@ export function Login() {
 
               <InputGroup>
                 <Label>Contraseña</Label>
-                <Input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  disabled={loading}
-                />
+                <PasswordWrapper>
+                  <PasswordInput
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    disabled={loading}
+                  />
+                  <TogglePasswordButton
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    disabled={loading}
+                    aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  >
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </TogglePasswordButton>
+                </PasswordWrapper>
               </InputGroup>
 
               <ButtonSection>
@@ -175,7 +191,6 @@ const LogoSection = styled.div`
 `;
 
 const Logo = styled.div`
-
   img {
     width: 50%;
     height: 50%;
@@ -185,7 +200,7 @@ const Logo = styled.div`
 `;
 
 const WelcomeText = styled.p`
-font-size: 1.5rem;
+  font-size: 1.5rem;
   font-weight: 600;
   margin: 0 0 1.5rem 0;
   line-height: 1.3;
@@ -232,6 +247,50 @@ const Input = styled.input`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+`;
+
+// 🆕 Nuevos componentes para el campo de contraseña con visibilidad
+const PasswordWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
+const PasswordInput = styled(Input)`
+  padding-right: 3rem; /* Espacio para el botón del ojo */
+`;
+
+const TogglePasswordButton = styled.button`
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+  font-size: 1.1rem;
+
+  &:hover:not(:disabled) {
+    color: #d4af37;
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
   }
 `;
 

@@ -405,7 +405,7 @@ export function Alerts() {
                       $primary 
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/inventario?highlight=${alerta.INVENTARIO.id}`);
+                        navigate('/inventario');
                       }}
                     >
                       <FiPackage />

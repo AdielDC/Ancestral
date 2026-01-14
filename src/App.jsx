@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar';
 import { Light, Dark } from './styles/Themes';
 import { ThemeProvider } from 'styled-components';
 import { Toaster } from 'react-hot-toast';
+import { SessionMonitor } from './components/SessionMonitor'; // 🆕 Importar monitor de sesión
 
 export const ThemeContext = React.createContext(null);
 
@@ -50,7 +51,6 @@ function AppContent() {
         />
 
         {mostrarSidebar ? (
-          // Layout CON Sidebar y Navbar
           <Container className={sidebarOpen ? "sidebarState active" : ""}>
             <Sidebar
               sidebarOpen={sidebarOpen}
@@ -64,7 +64,6 @@ function AppContent() {
             </MainWrapper>
           </Container>
         ) : (
-          // Layout SIN Sidebar (solo para login/register)
           <FullScreenContainer>
             <MyRoutes />
           </FullScreenContainer>

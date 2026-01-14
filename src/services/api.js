@@ -1,5 +1,6 @@
 // src/services/api.js
 import axios from 'axios';
+import { secureStorage } from '../utils/secureStorage';
 
 const api = axios.create({
   baseURL: 'http://localhost:3000/api', 
@@ -8,11 +9,13 @@ const api = axios.create({
   }
 });
 
-// Interceptor para agregar el token
+// Interceptor para agregar el token desencriptado
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  // 🔐 Obtener token desencriptado del storage seguro
+  const token = secureStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log('🔑 Token agregado a la petición');
   }
   return config;
 });
@@ -22,8 +25,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      console.log('🚫 Error 401: No autorizado, limpiando sesión');
+      secureStorage.clear();
       window.location.href = '/login';
     }
     return Promise.reject(error);

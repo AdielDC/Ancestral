@@ -11,7 +11,9 @@ import {
   FaUserTimes,
   FaSearch,
   FaUsers,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaEye,        // 🆕 Importar iconos
+  FaEyeSlash    // 🆕 Importar iconos
 } from 'react-icons/fa';
 import { MdAdminPanelSettings } from 'react-icons/md';
 
@@ -26,6 +28,10 @@ export function Configuracion() {
   const [filtroEstado, setFiltroEstado] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [pagination, setPagination] = useState(null);
+  
+  // 🆕 Estados para mostrar/ocultar contraseñas
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -75,6 +81,7 @@ export function Configuracion() {
       password: '',
       rol: 'visualizador'
     });
+    setShowPassword(false); // 🆕 Reset estado de visibilidad
     setShowModal(true);
   };
 
@@ -93,6 +100,7 @@ export function Configuracion() {
     setModalType('password');
     setUsuarioSeleccionado(usuario);
     setFormData({ new_password: '' });
+    setShowNewPassword(false); // 🆕 Reset estado de visibilidad
     setShowModal(true);
   };
 
@@ -106,6 +114,9 @@ export function Configuracion() {
       password: '',
       rol: 'visualizador'
     });
+    // 🆕 Reset estados de visibilidad al cerrar
+    setShowPassword(false);
+    setShowNewPassword(false);
   };
 
   const handleSubmit = async (e) => {
@@ -521,31 +532,51 @@ export function Configuracion() {
                 </>
               )}
 
+              {/* 🆕 Campo de contraseña con visibilidad (Crear Usuario) */}
               {modalType === 'crear' && (
                 <FormGroup>
                   <Label>Contraseña</Label>
-                  <Input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    minLength={6}
-                    required
-                    placeholder="Mínimo 6 caracteres"
-                  />
+                  <PasswordWrapper>
+                    <PasswordInput
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      minLength={6}
+                      required
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                    <TogglePasswordButton
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </TogglePasswordButton>
+                  </PasswordWrapper>
                 </FormGroup>
               )}
 
+              {/* 🆕 Campo de nueva contraseña con visibilidad (Cambiar Contraseña) */}
               {modalType === 'password' && (
                 <FormGroup>
                   <Label>Nueva Contraseña</Label>
-                  <Input
-                    type="password"
-                    value={formData.new_password}
-                    onChange={(e) => setFormData({ ...formData, new_password: e.target.value })}
-                    minLength={6}
-                    required
-                    placeholder="Mínimo 6 caracteres"
-                  />
+                  <PasswordWrapper>
+                    <PasswordInput
+                      type={showNewPassword ? "text" : "password"}
+                      value={formData.new_password}
+                      onChange={(e) => setFormData({ ...formData, new_password: e.target.value })}
+                      minLength={6}
+                      required
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                    <TogglePasswordButton
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      aria-label={showNewPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                    </TogglePasswordButton>
+                  </PasswordWrapper>
                   <HelpText>
                     La contraseña para: {usuarioSeleccionado?.email}
                   </HelpText>
@@ -1088,6 +1119,7 @@ const Label = styled.label`
   font-size: 0.7rem;
 `;
 
+// ⚠️ IMPORTANTE: Define Input PRIMERO
 const Input = styled.input`
   width: 100%;
   padding: 0.6rem 0.8rem;
@@ -1109,6 +1141,50 @@ const Input = styled.input`
   }
 `;
 
+// 🆕 LUEGO define los componentes de password que extienden Input
+const PasswordWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
+const PasswordInput = styled(Input)`
+  padding-right: 2.8rem; /* Espacio para el botón del ojo */
+`;
+
+const TogglePasswordButton = styled.button`
+  position: absolute;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  color: ${(props) => props.theme.text};
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 1rem;
+  border-radius: 4px;
+
+  &:hover {
+    opacity: 1;
+    background: ${(props) => props.theme.bg3};
+  }
+
+  &:focus {
+    outline: none;
+    opacity: 1;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+// Continúa con los demás styled components...
 const HelpText = styled.small`
   display: block;
   margin-top: 0.4rem;
